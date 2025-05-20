@@ -110,16 +110,6 @@ public class GamePanel extends ListenerPanel {
      */
     public void initialGame() {
         this.steps = 0;
-        // Debug model dimensions and contents
-        // System.out.println("Initializing game with model dimensions: " + 
-        //     model.getHeight() + "x" + model.getWidth());
-        // System.out.println("Model matrix:");
-        // for (int i = 0; i < model.getHeight(); i++) {
-        //     for (int j = 0; j < model.getWidth(); j++) {
-        //         System.out.print(model.getId(i, j) + " ");
-        //     }
-        //     System.out.println();
-        // }
         
         // Initialize game board from full model
         int[][] map = new int[model.getHeight()][model.getWidth()];
@@ -128,6 +118,7 @@ public class GamePanel extends ListenerPanel {
                 map[i][j] = model.getId(i, j);
             }
         }
+        
         // Create components for all blocks
         for (int i = 0; i < map.length; i++) {
             for (int j = 0; j < map[0].length; j++) {
@@ -136,22 +127,32 @@ public class GamePanel extends ListenerPanel {
                 BoxComponent box = null;
                 int blockType = map[i][j];
                 
+                // Check if this cell has already been processed as part of a larger piece
+                if (map[i][j] == 0) continue;
+                
                 switch(blockType) {
                     case MapModel.CAO_CAO: // 2x2
-                        if (i < map.length - 1 && j < map[0].length - 1) {
+                        if (i < map.length - 1 && j < map[0].length - 1 && 
+                            map[i+1][j] == MapModel.CAO_CAO && 
+                            map[i][j+1] == MapModel.CAO_CAO && 
+                            map[i+1][j+1] == MapModel.CAO_CAO) {
                             box = new BoxComponent(Color.RED, i, j);
                             box.setSize(GRID_SIZE * 2, GRID_SIZE * 2);
+                            // Mark all cells as processed
+                            map[i+1][j] = 0;
+                            map[i][j+1] = 0;
+                            map[i+1][j+1] = 0;
                         }
                         break;
                     case MapModel.GUAN_YU: // 2x1 horizontal
-                        if (j < map[0].length - 1 && map[i][j] == MapModel.GUAN_YU && map[i][j+1] == MapModel.GUAN_YU) {
+                        if (j < map[0].length - 1 && map[i][j+1] == MapModel.GUAN_YU) {
                             box = new BoxComponent(Color.ORANGE, i, j);
                             box.setSize(GRID_SIZE * 2, GRID_SIZE);
                             map[i][j+1] = 0; // Mark adjacent cell as processed
                         }
                         break;
                     case MapModel.GENERAL: // 1x2 vertical
-                        if (i < map.length - 1 && map[i][j] == MapModel.GENERAL && map[i+1][j] == MapModel.GENERAL) {
+                        if (i < map.length - 1 && map[i+1][j] == MapModel.GENERAL) {
                             box = new BoxComponent(Color.BLUE, i, j);
                             box.setSize(GRID_SIZE, GRID_SIZE * 2);
                             map[i+1][j] = 0; // Mark lower cell as processed
@@ -161,97 +162,24 @@ public class GamePanel extends ListenerPanel {
                         box = new BoxComponent(Color.GREEN, i, j);
                         box.setSize(GRID_SIZE, GRID_SIZE);
                         break;
-                    case MapModel.ZHOU_YU: // 1x3 horizontal
-                        if (j < map[0].length - 2) {
-                            box = new BoxComponent(Color.MAGENTA, i, j);
-                            box.setSize(GRID_SIZE * 3, GRID_SIZE);
-                        }
-                        break;
-                    case MapModel.BLOCKED: // Immovable
-                        box = new BoxComponent(Color.DARK_GRAY, i, j);
-                        box.setSize(GRID_SIZE, GRID_SIZE);
-                        box.setMovable(false);
-                        break;
-                    case -MapModel.BLOCKED: // Temporarily removed obstacle (lighter color)
-                        box = new BoxComponent(new Color(200, 200, 200), i, j); // Light gray color
-                        box.setSize(GRID_SIZE, GRID_SIZE);
-                        // Allow this to be movable (it's a temporarily removed obstacle)
-                        box.setMovable(true);
-                        break;
-                    case MapModel.MILITARY_CAMP: // Military camp - only soldiers can step on
-                        box = new BoxComponent(new Color(139, 69, 19), i, j); // Brown color for military camp
-                        box.setSize(GRID_SIZE, GRID_SIZE);
-                        box.setMovable(false); // Military camps are immovable
-                        // Add Chinese character text display for military camp
-                        JLabel campLabel = new JLabel("军营");
-                        campLabel.setForeground(Color.WHITE);
-                        campLabel.setFont(new Font("SimSun", Font.BOLD, GRID_SIZE / 3));
-                        campLabel.setHorizontalAlignment(JLabel.CENTER);
-                        campLabel.setBounds(0, 0, GRID_SIZE, GRID_SIZE);
-                        box.setLayout(new BorderLayout());
-                        box.add(campLabel, BorderLayout.CENTER);
-                        break;
                 }
                 
                 if (box != null) {
-                // Fixed offsets to ensure consistent positioning across all pieces
-                // Calculate precise centered position using fixed values instead of dynamic ones
-                int boardWidth = model.getWidth() * GRID_SIZE;
-                int boardHeight = model.getHeight() * GRID_SIZE;
-                
-                // Fixed padding values that won't change with panel resizing
-                int xOffset = horizontalPadding;
-                int yOffset = verticalPadding;
-                
-                // Ensure these are consistent with what's used in paintComponent
-                if (xOffset < 100) xOffset = 100;
-                if (yOffset < 80) yOffset = 80;
-                
-                // Calculate precise grid-aligned position
-                int x = xOffset + j * GRID_SIZE;
-                int y = yOffset + i * GRID_SIZE;
-                
-                // Debug precise positioning
-                System.out.println("Box at [" + i + "," + j + "] positioned at exact coordinates: " + 
-                                  x + "," + y + " with grid size " + GRID_SIZE);
-                
-                // Ensure all block types maintain proper grid alignment
-                switch (blockType) {
-                    case MapModel.GUAN_YU: // 2x1 horizontal
-                        if (box.getWidth() != GRID_SIZE * 2) {
-                            box.setSize(GRID_SIZE * 2, GRID_SIZE);
-                        }
-                        break;
-                    case MapModel.GENERAL: // 1x2 vertical
-                        if (box.getHeight() != GRID_SIZE * 2) {
-                            box.setSize(GRID_SIZE, GRID_SIZE * 2);
-                        }
-                        break;
-                    case MapModel.CAO_CAO: // 2x2
-                        if (box.getWidth() != GRID_SIZE * 2 || box.getHeight() != GRID_SIZE * 2) {
-                            box.setSize(GRID_SIZE * 2, GRID_SIZE * 2);
-                        }
-                        break;
-                    case MapModel.ZHOU_YU: // 3x1 horizontal
-                        if (box.getWidth() != GRID_SIZE * 3) {
-                            box.setSize(GRID_SIZE * 3, GRID_SIZE);
-                        }
-                        break;
-                }
+                    // Calculate precise centered position
+                    int xOffset = horizontalPadding;
+                    int yOffset = verticalPadding;
                     
-                    System.out.printf("Block at %d,%d positioned at %d,%d (offset %d,%d)\n",
-                        i, j, x, y, xOffset, yOffset);
+                    // Ensure minimum consistent margins
+                    if (xOffset < 100) xOffset = 100;
+                    if (yOffset < 80) yOffset = 80;
+                    
+                    // Calculate precise grid-aligned position
+                    int x = xOffset + j * GRID_SIZE;
+                    int y = yOffset + i * GRID_SIZE;
+                    
                     box.setLocation(x, y);
                     boxes.add(box);
                     this.add(box);
-                    // Mark all occupied cells as processed
-                    for (int r = i; r < i + box.getHeight()/GRID_SIZE; r++) {
-                        for (int c = j; c < j + box.getWidth()/GRID_SIZE; c++) {
-                            if (r < map.length && c < map[0].length) {
-                                map[r][c] = 0;
-                            }
-                        }
-                    }
                 }
             }
         }

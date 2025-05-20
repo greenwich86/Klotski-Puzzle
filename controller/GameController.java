@@ -24,6 +24,10 @@ import view.game.GamePanel;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.FileWriter;
+import java.nio.file.Files;
 
 /**
  * It is a bridge to combine GamePanel(view) and MapMatrix(model) in one game.
@@ -206,10 +210,9 @@ public class GameController {
     }
 
     private boolean canMove(int row, int col, int width, int height, Direction direction) {
-        // System.err.println("Checking move from ["+row+"]["+col+"] size "+width+"x"+height+" dir "+direction);
-        
         // Get the block type being moved
         int blockType = model.getId(row, col);
+        boolean isSoldier = (blockType == MapModel.SOLDIER);
 
         // Check boundaries first
         if (direction == Direction.UP && row == 0) return false;
@@ -233,14 +236,7 @@ public class GameController {
                 if (targetCell == MapModel.BLOCKED) return false;
                 
                 // Military camps: allow soldiers to move onto them, block others
-                if (targetCell == MapModel.MILITARY_CAMP) {
-                    if (blockType == MapModel.SOLDIER) {
-                        System.out.println("  Allowing soldier to move onto military camp");
-                    } else {
-                        System.out.println("  Blocking non-soldier from moving onto military camp");
-                        return false;
-                    }
-                }
+                if (targetCell == MapModel.MILITARY_CAMP && !isSoldier) return false;
             }
         }
         else if (direction == Direction.DOWN) {
@@ -255,14 +251,7 @@ public class GameController {
                 if (targetCell == MapModel.BLOCKED) return false;
                 
                 // Military camps: allow soldiers to move onto them, block others
-                if (targetCell == MapModel.MILITARY_CAMP) {
-                    if (blockType == MapModel.SOLDIER) {
-                        System.out.println("  Allowing soldier to move onto military camp");
-                    } else {
-                        System.out.println("  Blocking non-soldier from moving onto military camp");
-                        return false;
-                    }
-                }
+                if (targetCell == MapModel.MILITARY_CAMP && !isSoldier) return false;
             }
         }
         else if (direction == Direction.LEFT) {
@@ -277,14 +266,7 @@ public class GameController {
                 if (targetCell == MapModel.BLOCKED) return false;
                 
                 // Military camps: allow soldiers to move onto them, block others
-                if (targetCell == MapModel.MILITARY_CAMP) {
-                    if (blockType == MapModel.SOLDIER) {
-                        System.out.println("  Allowing soldier to move onto military camp");
-                    } else {
-                        System.out.println("  Blocking non-soldier from moving onto military camp");
-                        return false;
-                    }
-                }
+                if (targetCell == MapModel.MILITARY_CAMP && !isSoldier) return false;
             }
         }
         else if (direction == Direction.RIGHT) {
@@ -299,19 +281,16 @@ public class GameController {
                 if (targetCell == MapModel.BLOCKED) return false;
                 
                 // Military camps: allow soldiers to move onto them, block others
-                if (targetCell == MapModel.MILITARY_CAMP) {
-                    if (blockType == MapModel.SOLDIER) {
-                        System.out.println("  Allowing soldier to move onto military camp");
-                    } else {
-                        System.out.println("  Blocking non-soldier from moving onto military camp");
-                        return false;
-                    }
-                }
+                if (targetCell == MapModel.MILITARY_CAMP && !isSoldier) return false;
             }
         }
 
-        // System.out.println("Move valid");
         return true;
+    }
+
+    // Helper method to check if a position is the exit position
+    private boolean isExitPosition(int row, int col) {
+        return false; // Disable exit position check
     }
 
     public boolean doMove(int row, int col, Direction direction) {
@@ -610,19 +589,7 @@ public class GameController {
                 int targetCol = nextCol + c;
                 
                 if (targetRow < model.getHeight() && targetCol < model.getWidth()) {
-                    // Special handling for soldiers moving onto military camps
-                    boolean isMilitaryCampPosition = false;
-                    
-                    // Check if this position is a covered military camp
-                    for (int[] campPos : coveredMilitaryCamps) {
-                        if (campPos[0] == targetRow && campPos[1] == targetCol) {
-                            isMilitaryCampPosition = true;
-                            break;
-                        }
-                    }
-                    
-                    // For soldiers stepping on military camps, we still want to 
-                    // update the model to show the soldier (not the camp)
+                    // For all pieces, including soldiers, update the position
                     model.getMatrix()[targetRow][targetCol] = blockType;
                 }
             }
@@ -1137,27 +1104,50 @@ public class GameController {
                 savesDir.mkdir();
             }
 
-            File saveFile = new File("saves/" + currentUser + ".sav");
-            try (FileOutputStream fos = new FileOutputStream(saveFile);
-                 DataOutputStream dos = new DataOutputStream(fos)) {
-                
-                // Write username
-                dos.writeUTF(currentUser);
-                
-                // Write move count
-                dos.writeInt(moveCount);
-                
-                // Write board dimensions
-                dos.writeInt(model.getHeight());
-                dos.writeInt(model.getWidth());
-                
-                // Write board state
-                for (int i = 0; i < model.getHeight(); i++) {
-                    for (int j = 0; j < model.getWidth(); j++) {
-                        dos.writeInt(model.getMatrix()[i][j]);
-                    }
+            File saveFile = new File("saves/" + currentUser + ".json");
+            
+            // Create JSON object for game state
+            JSONObject gameState = new JSONObject();
+            gameState.put("username", currentUser);
+            gameState.put("moveCount", moveCount);
+            gameState.put("currentLevel", currentLevel);
+            
+            // Save board dimensions
+            gameState.put("height", model.getHeight());
+            gameState.put("width", model.getWidth());
+            
+            // Save board state as 2D array
+            JSONArray boardArray = new JSONArray();
+            for (int i = 0; i < model.getHeight(); i++) {
+                JSONArray row = new JSONArray();
+                for (int j = 0; j < model.getWidth(); j++) {
+                    row.put(model.getMatrix()[i][j]);
                 }
-                
+                boardArray.put(row);
+            }
+            gameState.put("board", boardArray);
+            
+            // Save props state
+            JSONObject propsState = new JSONObject();
+            for (Map.Entry<Prop.PropType, Prop> entry : availableProps.entrySet()) {
+                propsState.put(entry.getKey().toString(), entry.getValue().getCount());
+            }
+            gameState.put("props", propsState);
+            
+            // Save removed obstacles
+            JSONArray obstaclesArray = new JSONArray();
+            for (int[] obstacle : removedObstacles) {
+                JSONArray obstacleData = new JSONArray();
+                obstacleData.put(obstacle[0]); // row
+                obstacleData.put(obstacle[1]); // col
+                obstacleData.put(obstacle[2]); // steps remaining
+                obstaclesArray.put(obstacleData);
+            }
+            gameState.put("removedObstacles", obstaclesArray);
+            
+            // Write to file with pretty printing
+            try (FileWriter writer = new FileWriter(saveFile)) {
+                writer.write(gameState.toString(2)); // Pretty print with 2-space indent
                 JOptionPane.showMessageDialog(view, "Game saved successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             }
         } catch (Exception e) {
@@ -1279,36 +1269,63 @@ public class GameController {
             return false;
         }
 
-        File saveFile = new File("saves/" + currentUser + ".sav");
+        File saveFile = new File("saves/" + currentUser + ".json");
         if (!saveFile.exists()) {
             JOptionPane.showMessageDialog(view, "No saved game found", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
 
-        try (FileInputStream fis = new FileInputStream(saveFile);
-             DataInputStream dis = new DataInputStream(fis)) {
+        try {
+            // Read JSON file
+            String jsonContent = new String(Files.readAllBytes(saveFile.toPath()));
+            JSONObject gameState = new JSONObject(jsonContent);
             
-            // Read username
-            String username = dis.readUTF();
+            // Verify username
+            String username = gameState.getString("username");
             if (!username.equals(currentUser)) {
                 throw new Exception("Save file does not belong to current user");
             }
             
-            // Read move count
-            moveCount = dis.readInt();
+            // Load basic game state
+            moveCount = gameState.getInt("moveCount");
+            currentLevel = gameState.getInt("currentLevel");
             
-            // Read board dimensions
-            int height = dis.readInt();
-            int width = dis.readInt();
+            // Load board dimensions and state
+            int height = gameState.getInt("height");
+            int width = gameState.getInt("width");
+            JSONArray boardArray = gameState.getJSONArray("board");
             
-            // Read board state
             int[][] loadedMatrix = new int[height][width];
             for (int i = 0; i < height; i++) {
+                JSONArray row = boardArray.getJSONArray(i);
                 for (int j = 0; j < width; j++) {
-                    loadedMatrix[i][j] = dis.readInt();
+                    loadedMatrix[i][j] = row.getInt(j);
                 }
             }
             
+            // Load props state
+            JSONObject propsState = gameState.getJSONObject("props");
+            availableProps.clear();
+            for (Prop.PropType type : Prop.PropType.values()) {
+                if (propsState.has(type.toString())) {
+                    int count = propsState.getInt(type.toString());
+                    availableProps.put(type, new Prop(type, count));
+                }
+            }
+            
+            // Load removed obstacles
+            JSONArray obstaclesArray = gameState.getJSONArray("removedObstacles");
+            removedObstacles.clear();
+            for (int i = 0; i < obstaclesArray.length(); i++) {
+                JSONArray obstacleData = obstaclesArray.getJSONArray(i);
+                int[] obstacle = new int[3];
+                obstacle[0] = obstacleData.getInt(0); // row
+                obstacle[1] = obstacleData.getInt(1); // col
+                obstacle[2] = obstacleData.getInt(2); // steps remaining
+                removedObstacles.add(obstacle);
+            }
+            
+            // Update game state
             this.model = new MapModel(loadedMatrix);
             this.moveHistory.clear();
             this.moveHistory.push(model.copyMatrix());

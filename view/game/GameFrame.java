@@ -594,4 +594,12 @@ public class GameFrame extends JFrame {
             }
         }
     }
+
+    /**
+     * Gets the game panel
+     * @return The game panel
+     */
+    public GamePanel getGamePanel() {
+        return gamePanel;
+    }
 }
