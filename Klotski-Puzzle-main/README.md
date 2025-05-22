@@ -1,2 +1,0 @@
-# Klotski-Puzzle
-Project
