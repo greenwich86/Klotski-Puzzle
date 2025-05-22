@@ -3,8 +3,9 @@ package view.game;
 import javax.swing.*;
 import javax.swing.border.Border;
 import java.awt.*;
-import java.util.stream.Collectors;
-
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.IOException;
 public class BoxComponent extends JComponent {
     private Color color;
     private int row;
@@ -12,7 +13,8 @@ public class BoxComponent extends JComponent {
     private boolean isSelected;
     private boolean movable;
     private boolean isAnimating;
-
+    private Image pieceImage;
+    private boolean isImageLoaded = false;
 
     public BoxComponent(Color color, int row, int col) {
         this(color, row, col, true);
@@ -26,66 +28,78 @@ public class BoxComponent extends JComponent {
         this.movable = movable;
     }
 
+    private void loadAndScaleImage() {
+        if (isImageLoaded || getWidth() <= 0 || getHeight() <= 0) {
+            return;
+        }
+
+        String imagePath = getImagePathByColor();
+        if (imagePath == null) {
+            isImageLoaded = true;
+            return;
+        }
+
+        java.io.InputStream imageStream = getClass().getResourceAsStream(imagePath);
+        if (imageStream == null) {
+            System.err.println("图片资源不存在，路径：" + imagePath);
+            isImageLoaded = true;
+            return;
+        }
+
+        try (imageStream) {
+            BufferedImage originalImage = ImageIO.read(imageStream);
+            if (originalImage != null) {
+                pieceImage = originalImage.getScaledInstance(
+                        getWidth(),
+                        getHeight(),
+                        Image.SCALE_SMOOTH
+                );
+                isImageLoaded = true;
+            } else {
+                System.err.println("无法读取图片格式，路径：" + imagePath);
+                isImageLoaded = true;
+            }
+        } catch (IOException e) {
+            System.err.println("图片读取失败，路径：" + imagePath + "，错误：" + e.getMessage());
+            isImageLoaded = true;
+        }
+    }
+
+    private String getImagePathByColor() {
+        if (color.equals(Color.RED)) {
+            return "/resource/Cao Cao.jpg";
+        } else if (color.equals(Color.ORANGE)) {
+            return "/resource/Guan Yu.jpg";
+        } else if (color.equals(Color.BLUE)) {
+            return "/resource/General.jpg";
+        } else if (color.equals(Color.GREEN)) {
+            return "/resource/Soldier.jpg";
+        } else if (color.equals(Color.MAGENTA)) {
+            return "/resource/Zhou Yu.jpg";
+        } else if (color.equals(Color.DARK_GRAY)) {
+            return "/resource/Blocked.jpg";
+        }
+        return null;
+    }
+
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
-        g.setColor(color);
-        g.fillRect(0, 0, getWidth(), getHeight());
-        
-        // Set text color and font - use high contrast colors
-        Color textColor = color.getRed() + color.getGreen() + color.getBlue() > 382 ? 
-                         Color.BLACK : Color.WHITE;
-        g.setColor(textColor);
-        
-        // Calculate dynamic font size based on component dimensions
-        int fontSize = Math.min(getWidth(), getHeight()) / 3;
-        fontSize = Math.max(8, Math.min(24, fontSize)); // Clamp between 8-24
-        
-        try {
-            Font font = new Font("Microsoft YaHei", Font.BOLD, fontSize);
-            g.setFont(font);
-        } catch (Exception e) {
-            Font font = new Font(Font.SANS_SERIF, Font.BOLD, fontSize);
-            g.setFont(font);
+
+        if (!isImageLoaded) {
+            loadAndScaleImage();
         }
-        
-        // Determine Chinese name based on color (using Unicode escapes)
-        String name = "";
-        if (color.equals(Color.RED)) {
-            name = "\u66F9\u64CD"; // 曹操 (Cao Cao)
-        } else if (color.equals(Color.ORANGE)) {
-            name = "\u5173\u7FBD"; // 关羽 (Guan Yu)
-        } else if (color.equals(Color.BLUE)) {
-            name = "\u5C06\u519B"; // 将军 (General)
-        } else if (color.equals(Color.GREEN)) {
-            name = "\u58EB\u5175"; // 士兵 (Soldier)
-        } else if (color.equals(Color.MAGENTA)) {
-            name = "\u5468\u745E"; // 周瑜 (Zhou Yu)
-        } else if (color.equals(Color.DARK_GRAY)) {
-            name = "\u969C\u788D"; // 障碍 (Obstacle)
+
+        if (pieceImage != null) {
+            g.drawImage(pieceImage, 0, 0, this);
+        } else {
+            g.setColor(color);
+            g.fillRect(0, 0, getWidth(), getHeight());
         }
-        
-        // Draw text with positioning
-        FontMetrics fm = g.getFontMetrics();
-        int x = (getWidth() - fm.stringWidth(name)) / 2;
-        int y = ((getHeight() - fm.getHeight()) / 2) + fm.getAscent();
-        
-        // Draw text background for visibility
-        g.setColor(new Color(0,0,0,100));
-        g.fillRect(x-2, y-fm.getAscent()-2, 
-                  fm.stringWidth(name)+4, fm.getHeight()+4);
-        
-        // Draw the text
-        g.setColor(textColor);
-        g.drawString(name, x, y);
-        
-        // Draw debug outlines
+
         g.setColor(Color.RED);
         g.drawRect(0, 0, getWidth()-1, getHeight()-1);
-        g.drawRect(x-2, y-fm.getAscent()-2, 
-                  fm.stringWidth(name)+4, fm.getHeight()+4);
-        
-        // Set selection border
+
         Border border;
         if(isSelected){
             border = BorderFactory.createLineBorder(Color.red,3);
@@ -136,6 +150,4 @@ public class BoxComponent extends JComponent {
         this.movable = movable;
         this.repaint();
     }
-
-
 }

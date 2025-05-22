@@ -1,17 +1,18 @@
 package view.menu;
 
-import view.FrameUtil;
 import view.game.GameFrame;
 import model.MapModel;
 
 import javax.swing.*;
+import javax.swing.border.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.geom.RoundRectangle2D;
+import java.net.URL;
 
-/**
- * This frame allows players to select game settings before starting:
- * - Difficulty level (1-3)
- * - Time Attack Mode (on/off)
- */
 public class GameSettingsFrame extends JFrame {
     private final GameFrame gameFrame;
     private final SelectionMenuFrame parentFrame;
@@ -19,431 +20,575 @@ public class GameSettingsFrame extends JFrame {
     private JRadioButton[] levelButtons;
     private JRadioButton normalModeButton;
     private JRadioButton timeAttackButton;
-    private JRadioButton timer3MinButton;
-    private JRadioButton timer5MinButton;
-    private JRadioButton timer7MinButton;
-    
-    // Add the missing field
-    private int selectedTimeLimit;
-    
-    // UI components
-    private JPanel buttonPanel; // Panel for timer selection buttons
+    private int selectedTimeLimit = 3;
+    private JPanel buttonPanel;
+    private JPanel gameModePanel;
+
+    private static final Color PRIMARY_COLOR = new Color(139, 69, 19);    // 主色调
+    private static final Color ACCENT_COLOR = new Color(244, 164, 96);    // 强调色
+    private static final Color BACKGROUND_COLOR = new Color(245, 245, 220, 240); // 背景
+    private static final Color TEXT_COLOR = new Color(51, 51, 51);         // 文本
+    private static final Color DISABLED_COLOR = new Color(200, 200, 200);  //
+    private static final Color HOVER_COLOR = new Color(184, 134, 11, 200); // 悬停颜色
+    private static final Color SELECTED_COLOR = new Color(139, 69, 19);    // 选中颜色
+
+    private static final Font TITLE_FONT = new Font("Segoe UI", Font.BOLD, 32);
+    private static final Font SUBTITLE_FONT = new Font("Segoe UI", Font.BOLD, 18);
+    private static final Font BODY_FONT = new Font("Segoe UI", Font.PLAIN, 16);
+    private static final Font BUTTON_FONT = new Font("Segoe UI", Font.BOLD, 18);
+
+    private Image backgroundImage;
 
     public GameSettingsFrame(int width, int height, GameFrame gameFrame, SelectionMenuFrame parentFrame) {
         this.gameFrame = gameFrame;
         this.parentFrame = parentFrame;
 
-        this.setTitle("Game Settings");
-        this.setLayout(new BorderLayout());
-        
-        // Increase window size to fit all elements
-        this.setSize(Math.max(width, 600), Math.max(height, 700));
-        this.setPreferredSize(new Dimension(600, 700));
+        URL bgImageUrl = getClass().getResource("/resource/Settingsframe.jpg");
+        if (bgImageUrl != null) {
+            this.backgroundImage = new ImageIcon(bgImageUrl).getImage();
+        }
+        System.setProperty("awt.useSystemAAFontSettings", "on");
+        System.setProperty("swing.aatext", "true");
 
-        // Title panel
-        JPanel titlePanel = new JPanel();
-        titlePanel.setLayout(new FlowLayout(FlowLayout.CENTER));
+        this.setTitle("Game Settings");
+        this.setContentPane(new BackgroundPanel());
+        this.setLayout(new BorderLayout());
+        this.setSize(Math.max(width, 600), Math.max(height, 700));
+        this.setPreferredSize(new Dimension(950, 850));
+        this.setUndecorated(true);
+
+        JPanel titleBar = createTitleBar();
+
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setOpaque(false);
+
+        // 标题区
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        titlePanel.setOpaque(false);
+        titlePanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 30, 0));
+
         JLabel titleLabel = new JLabel("Game Settings");
-        titleLabel.setFont(new Font("serif", Font.BOLD, 24));
+        titleLabel.setFont(TITLE_FONT);
+        titleLabel.setForeground(PRIMARY_COLOR);
         titlePanel.add(titleLabel);
 
-        // Settings panel
-        JPanel settingsPanel = new JPanel();
-        settingsPanel.setLayout(new BoxLayout(settingsPanel, BoxLayout.Y_AXIS));
-        settingsPanel.setBorder(BorderFactory.createEmptyBorder(20, 40, 20, 40));
+        // 主设置面板
+        JPanel settingsPanel = new JPanel(new GridBagLayout());
+        settingsPanel.setOpaque(false);
+        settingsPanel.setBorder(BorderFactory.createEmptyBorder(0, 60, 30, 60));
 
-        // Difficulty selection
-        JPanel difficultyPanel = new JPanel();
-        difficultyPanel.setLayout(new BoxLayout(difficultyPanel, BoxLayout.Y_AXIS));
-        difficultyPanel.setBorder(BorderFactory.createTitledBorder("Difficulty Level"));
-        difficultyPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(0, 0, 30, 0);
+        gbc.weightx = 1.0;
 
-        // Create level buttons using level names from MapModel
+        JPanel difficultyPanel = createDifficultyPanel();
+        difficultyPanel.setBorder(createRoundedBorder("Difficulty Level", PRIMARY_COLOR));
+        difficultyPanel.setBackground(BACKGROUND_COLOR);
+        settingsPanel.add(difficultyPanel, gbc);
+
+        gbc.gridy = 1;
+        gameModePanel = createGameModePanel();
+        gameModePanel.setBorder(createRoundedBorder("Game Mode", PRIMARY_COLOR));
+        gameModePanel.setBackground(BACKGROUND_COLOR);
+        settingsPanel.add(gameModePanel, gbc);
+
+        JScrollPane scrollPane = new JScrollPane(settingsPanel);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getVerticalScrollBar().setUI(new CustomScrollBarUI());
+
+        JPanel controlButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 20));
+        controlButtonPanel.setOpaque(false);
+        controlButtonPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 30, 0));
+
+        JButton startButton = createStyledButton("Start Game", PRIMARY_COLOR);
+        startButton.addActionListener(e -> startGame());
+
+        JButton backButton = createStyledButton("Back", DISABLED_COLOR);
+        backButton.addActionListener(e -> goBack());
+
+        controlButtonPanel.add(backButton);
+        controlButtonPanel.add(startButton);
+
+        contentPanel.add(titlePanel, BorderLayout.NORTH);
+        contentPanel.add(scrollPane, BorderLayout.CENTER);
+        contentPanel.add(controlButtonPanel, BorderLayout.SOUTH);
+
+        this.add(titleBar, BorderLayout.NORTH);
+        this.add(contentPanel, BorderLayout.CENTER);
+
+        this.setLocationRelativeTo(null);
+        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        this.pack();
+
+        setShape(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 20, 20));
+
+        this.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                parentFrame.setVisible(true);
+            }
+        });
+
+        addWindowDragFunctionality();
+    }
+
+    // 标题栏
+    private JPanel createTitleBar() {
+        JPanel titleBar = new JPanel(new BorderLayout());
+        titleBar.setBackground(new Color(139, 69, 19, 220));
+        titleBar.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, ACCENT_COLOR));
+        titleBar.setPreferredSize(new Dimension(0, 40));
+
+        JLabel titleLabel = new JLabel("  Klotski Puzzle - Game Settings");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(Color.WHITE);
+
+        JButton closeButton = new JButton("×");
+        closeButton.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        closeButton.setForeground(Color.WHITE);
+        closeButton.setBackground(new Color(139, 69, 19));
+        closeButton.setBorder(null);
+        closeButton.setFocusPainted(false);
+        closeButton.setContentAreaFilled(false);
+
+        closeButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                closeButton.setForeground(Color.RED);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                closeButton.setForeground(Color.WHITE);
+            }
+
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                parentFrame.setVisible(true);
+                dispose();
+            }
+        });
+
+        titleBar.add(titleLabel, BorderLayout.WEST);
+        titleBar.add(closeButton, BorderLayout.EAST);
+
+        return titleBar;
+    }
+
+    // 添加窗口拖动功能
+    private void addWindowDragFunctionality() {
+        final Point[] initialClick = {new Point()};
+
+        Component titleBar = getContentPane().getComponent(0);
+        titleBar.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                initialClick[0] = e.getPoint();
+            }
+        });
+
+        titleBar.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                // 获取当前窗口位置
+                int thisX = getLocation().x;
+                int thisY = getLocation().y;
+
+                // 计算移动距离
+                int xMoved = e.getX() - initialClick[0].x;
+                int yMoved = e.getY() - initialClick[0].y;
+
+                // 移动窗口
+                setLocation(thisX + xMoved, thisY + yMoved);
+            }
+        });
+    }
+
+    // 创建带圆角的边框
+    private Border createRoundedBorder(String title, Color color) {
+        return BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(
+                        null,
+                        title,
+                        TitledBorder.DEFAULT_JUSTIFICATION,
+                        TitledBorder.DEFAULT_POSITION,
+                        SUBTITLE_FONT,
+                        color
+                ),
+                BorderFactory.createEmptyBorder(15, 20, 15, 20)
+        );
+    }
+
+    // 自定义滚动条UI
+    private static class CustomScrollBarUI extends javax.swing.plaf.basic.BasicScrollBarUI {
+        @Override
+        protected void configureScrollBarColors() {
+            this.thumbColor = new Color(139, 69, 19, 150);
+            this.trackColor = new Color(245, 245, 220, 100);
+            this.thumbHighlightColor = new Color(184, 134, 11);
+            this.thumbLightShadowColor = new Color(139, 69, 19);
+            this.thumbDarkShadowColor = new Color(101, 67, 33);
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return createZeroButton();
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return createZeroButton();
+        }
+
+        private JButton createZeroButton() {
+            JButton button = new JButton();
+            button.setPreferredSize(new Dimension(0, 0));
+            button.setMinimumSize(new Dimension(0, 0));
+            button.setMaximumSize(new Dimension(0, 0));
+            return button;
+        }
+    }
+
+    private JButton createStyledButton(String text, Color baseColor) {
+        JButton button = new JButton(text);
+        button.setFont(BUTTON_FONT);
+        button.setForeground(Color.WHITE);
+        button.setBackground(baseColor);
+        button.setPreferredSize(new Dimension(160, 50));
+        button.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(baseColor.darker(), 2, true),
+                new EmptyBorder(8, 16, 8, 16)
+        ));
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(true);
+
+        // 按钮悬停
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(baseColor.darker());
+                button.setBorder(BorderFactory.createLineBorder(baseColor.darker().darker(), 2, true));
+                button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(baseColor);
+                button.setBorder(BorderFactory.createLineBorder(baseColor.darker(), 2, true));
+            }
+        });
+
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                button.setBorder(BorderFactory.createLineBorder(baseColor.darker().darker(), 3, true));
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                button.setBorder(BorderFactory.createLineBorder(baseColor.darker(), 2, true));
+            }
+        });
+
+        return button;
+    }
+
+    private JPanel createDifficultyPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BACKGROUND_COLOR);
+
         levelButtons = new JRadioButton[MapModel.LEVELS.length];
         ButtonGroup levelGroup = new ButtonGroup();
 
         for (int i = 0; i < MapModel.LEVELS.length; i++) {
             levelButtons[i] = new JRadioButton(MapModel.LEVEL_NAMES[i]);
             levelButtons[i].setAlignmentX(Component.LEFT_ALIGNMENT);
-            
-            // Set font based on difficulty
-            if (i == MapModel.LEVELS.length - 1) { // Master level
-                levelButtons[i].setFont(new Font("serif", Font.BOLD, 16));
-                levelButtons[i].setForeground(Color.RED);
-            } else if (i == 0) { // Easy level
-                levelButtons[i].setFont(new Font("serif", Font.PLAIN, 14));
-                levelButtons[i].setForeground(Color.BLUE);
-            } else { // Other levels
-                levelButtons[i].setFont(new Font("serif", Font.PLAIN, 14));
+            levelButtons[i].setFont(BODY_FONT);
+            levelButtons[i].setBackground(BACKGROUND_COLOR);
+            levelButtons[i].setForeground(TEXT_COLOR);
+            levelButtons[i].setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+            if (i == MapModel.LEVELS.length - 1) {
+                levelButtons[i].setForeground(new Color(165, 42, 42));
+                levelButtons[i].setFont(new Font("Segoe UI", Font.BOLD, 17));
+            } else if (i == 0) {
+                levelButtons[i].setForeground(PRIMARY_COLOR);
             }
-            
-            if (i == 0) {
-                levelButtons[i].setSelected(true);
-            }
-            
-            // Add tooltips for each level
-            switch (i) {
-                case 0: // Easy
-                    levelButtons[i].setToolTipText("Classic level - No props available");
-                    break;
-                case 1: // Hard
-                    levelButtons[i].setToolTipText("Harder puzzles - Props allowed");
-                    break;
-                case 2: // Expert
-                    levelButtons[i].setToolTipText("Expert difficulty - Props allowed");
-                    break;
-                case 3: // Master
-                    levelButtons[i].setToolTipText("Master difficulty - 5 minute time limit, No props, Military camps restrict soldier movement");
-                    break;
-            }
-            
+
+            levelButtons[i].setToolTipText(switch (i) {
+                case 0 -> "Classic level - No props available";
+                case 1 -> "Harder puzzles - Props allowed";
+                case 2 -> "Expert difficulty - Props allowed";
+                case 3 -> "Master difficulty - 5 minute time limit, No props, Military camps restrict soldier movement";
+                default -> "";
+            });
+
+            levelButtons[i].addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    JRadioButton btn = (JRadioButton) e.getSource();
+                    if (!btn.isSelected()) {
+                        btn.setBackground(new Color(230, 230, 210, 240));
+                    }
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    JRadioButton btn = (JRadioButton) e.getSource();
+                    if (!btn.isSelected()) {
+                        btn.setBackground(BACKGROUND_COLOR);
+                    }
+                }
+            });
+
             final int level = i;
             levelButtons[i].addActionListener(e -> {
-                // If Master level selected, enforce time attack mode
-                if (level == MapModel.LEVELS.length - 1) { // Master level
+                for (JRadioButton btn : levelButtons) {
+                    btn.setBackground(BACKGROUND_COLOR);
+                }
+
+                levelButtons[level].setBackground(new Color(220, 220, 200, 240));
+
+                if (level == MapModel.LEVELS.length - 1) {
                     timeAttackButton.setSelected(true);
                     timeAttackButton.setEnabled(false);
                     normalModeButton.setEnabled(false);
                     selectedTimeLimit = MapModel.DEFAULT_MASTER_TIME_LIMIT;
-                    
-                    // Update time buttons
+
                     for (Component comp : buttonPanel.getComponents()) {
-                        if (comp instanceof JButton) {
-                            JButton btn = (JButton)comp;
-                            String btnText = btn.getText();
-                            
-                            if (btnText.equals("5 MINUTES")) {
-                                btn.setBackground(new Color(100, 150, 255));
-                                btn.setForeground(Color.WHITE);
-                            } else {
-                                btn.setBackground(new Color(220, 220, 220));
-                                btn.setForeground(Color.GRAY);
-                                btn.setEnabled(false);
-                            }
+                        JButton btn = (JButton) comp;
+                        if (btn.getText().equals("5 MINUTES")) {
+                            btn.setBackground(PRIMARY_COLOR);
+                            btn.setForeground(Color.WHITE);
+                            btn.setEnabled(true);
+                        } else {
+                            btn.setBackground(DISABLED_COLOR);
+                            btn.setForeground(Color.GRAY);
+                            btn.setEnabled(false);
                         }
                     }
-                    
-                    // Add warning label
+
                     JOptionPane.showMessageDialog(
-                        this,
-                        "Master difficulty enforces a 5-minute time limit and contains military camps\n" +
-                        "that soldiers cannot step on. No props are available in this mode.",
-                        "Master Difficulty",
-                        JOptionPane.WARNING_MESSAGE
+                            this,
+                            "Master difficulty enforces a 5-minute time limit and contains military camps\n" +
+                                    "that soldiers cannot step on. No props are available in this mode.",
+                            "Master Difficulty",
+                            JOptionPane.WARNING_MESSAGE
                     );
                 } else {
-                    // Re-enable mode selection for non-Master levels
                     timeAttackButton.setEnabled(true);
                     normalModeButton.setEnabled(true);
-                    
-                    // Re-enable all timer buttons
                     for (Component comp : buttonPanel.getComponents()) {
-                        if (comp instanceof JButton) {
-                            comp.setEnabled(true);
-                        }
+                        if (comp instanceof JButton) comp.setEnabled(true);
                     }
                 }
             });
-            
+
             levelGroup.add(levelButtons[i]);
-            difficultyPanel.add(levelButtons[i]);
-            difficultyPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+            panel.add(levelButtons[i]);
+            panel.add(Box.createRigidArea(new Dimension(0, 10)));
         }
 
-        // Game Mode panel - Normal vs Time Attack
-        JPanel gameModePanel = new JPanel();
-        gameModePanel.setLayout(new BoxLayout(gameModePanel, BoxLayout.Y_AXIS));
-        gameModePanel.setBorder(BorderFactory.createTitledBorder("Game Mode"));
-        gameModePanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        return panel;
+    }
 
-        // Mode selection buttons with large, clear text
-        this.normalModeButton = new JRadioButton("Normal Mode");
-        normalModeButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+    private JPanel createGameModePanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BACKGROUND_COLOR);
+        JPanel modeSelectionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        modeSelectionPanel.setOpaque(false);
+
+        normalModeButton = new JRadioButton("Normal Mode");
+        normalModeButton.setFont(SUBTITLE_FONT);
+        normalModeButton.setBackground(BACKGROUND_COLOR);
         normalModeButton.setSelected(true);
-        normalModeButton.setFont(new Font("Arial", Font.BOLD, 16));
-        
-        this.timeAttackButton = new JRadioButton("⏱️ TIME ATTACK MODE");
-        timeAttackButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        timeAttackButton.setFont(new Font("Arial", Font.BOLD, 16));
-        timeAttackButton.setForeground(Color.RED);
-        
-        // Group radio buttons
+        normalModeButton.setForeground(TEXT_COLOR);
+        normalModeButton.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        timeAttackButton = new JRadioButton("⏱️ TIME ATTACK MODE");
+        timeAttackButton.setFont(SUBTITLE_FONT);
+        timeAttackButton.setForeground(PRIMARY_COLOR);
+        timeAttackButton.setBackground(BACKGROUND_COLOR);
+        timeAttackButton.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+
+        normalModeButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (!normalModeButton.isSelected()) {
+                    normalModeButton.setBackground(new Color(230, 230, 210, 240));
+                }
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (!normalModeButton.isSelected()) {
+                    normalModeButton.setBackground(BACKGROUND_COLOR);
+                }
+            }
+        });
+
+        timeAttackButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (!timeAttackButton.isSelected()) {
+                    timeAttackButton.setBackground(new Color(230, 230, 210, 240));
+                }
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (!timeAttackButton.isSelected()) {
+                    timeAttackButton.setBackground(BACKGROUND_COLOR);
+                }
+            }
+        });
+
         ButtonGroup modeGroup = new ButtonGroup();
         modeGroup.add(normalModeButton);
         modeGroup.add(timeAttackButton);
-        
-        // Add to panel with more spacing
-        gameModePanel.add(normalModeButton);
-        gameModePanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        gameModePanel.add(timeAttackButton);
-        gameModePanel.add(Box.createRigidArea(new Dimension(0, 15))); // Extra space before timer options
-        
-        // EXTREMELY VISIBLE timer panel with direct buttons - but more compact
-        JPanel timerOptionsPanel = new JPanel();
-        timerOptionsPanel.setLayout(new BorderLayout());
-        timerOptionsPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(Color.RED, 3), // Slightly thinner border
-            "⏱️ SELECT TIME LIMIT ⏱️"));
-        timerOptionsPanel.setBackground(new Color(255, 220, 220)); // Brighter background
-        timerOptionsPanel.setOpaque(true);
-        timerOptionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        timerOptionsPanel.setPreferredSize(new Dimension(250, 160)); // Smaller size
-        timerOptionsPanel.setMaximumSize(new Dimension(250, 160)); // Limit maximum size
-        
-        // Extra-obvious heading label
-        JLabel timeLabel = new JLabel("⏱️ CHOOSE GAME DURATION: ⏱️");
-        timeLabel.setFont(new Font("Arial", Font.BOLD, 18)); // Larger font
-        timeLabel.setForeground(Color.RED);
+
+        modeSelectionPanel.add(normalModeButton);
+        modeSelectionPanel.add(Box.createRigidArea(new Dimension(30, 0)));
+        modeSelectionPanel.add(timeAttackButton);
+
+        panel.add(modeSelectionPanel);
+        panel.add(Box.createRigidArea(new Dimension(0, 20)));
+
+        JPanel timerOptionsPanel = new JPanel(new BorderLayout());
+        timerOptionsPanel.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(PRIMARY_COLOR, 2, true),
+                new EmptyBorder(10, 10, 10, 10)
+        ));
+        timerOptionsPanel.setBackground(Color.WHITE);
+        timerOptionsPanel.setPreferredSize(new Dimension(320, 200));
+
+        JLabel timeLabel = new JLabel("⏱️ SELECT TIME LIMIT");
+        timeLabel.setFont(SUBTITLE_FONT);
+        timeLabel.setForeground(PRIMARY_COLOR);
         timeLabel.setHorizontalAlignment(JLabel.CENTER);
-        timeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        timeLabel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 1),
-            BorderFactory.createEmptyBorder(5, 5, 5, 5)
-        ));
-        
-        // Timer button panel with extra spacing
-        this.buttonPanel = new JPanel();
-        buttonPanel.setLayout(new GridLayout(3, 1, 0, 15));
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        buttonPanel.setBackground(new Color(255, 240, 240));
-        buttonPanel.setOpaque(true);
-        
-        // Large, obvious buttons with bright colors
-        JButton btn3Min = new JButton("3 MINUTES");
-        JButton btn5Min = new JButton("5 MINUTES");
-        JButton btn7Min = new JButton("7 MINUTES");
-        
-        // Format buttons with EXTREMELY distinct colors and larger size
-        btn3Min.setBackground(new Color(50, 150, 255));
-        btn5Min.setBackground(new Color(230, 230, 255));
-        btn7Min.setBackground(new Color(230, 230, 255));
-        btn3Min.setForeground(Color.WHITE);
-        btn5Min.setForeground(Color.BLACK);
-        btn7Min.setForeground(Color.BLACK);
-        btn3Min.setFont(new Font("Arial", Font.BOLD, 22)); // Much bigger font
-        btn5Min.setFont(new Font("Arial", Font.BOLD, 22));
-        btn7Min.setFont(new Font("Arial", Font.BOLD, 22));
-        
-        // Make buttons appropriate size but not too large
-        Dimension buttonSize = new Dimension(170, 35);
-        btn3Min.setPreferredSize(buttonSize);
-        btn5Min.setPreferredSize(buttonSize);
-        btn7Min.setPreferredSize(buttonSize);
-        btn3Min.setMinimumSize(buttonSize);
-        btn5Min.setMinimumSize(buttonSize);
-        btn7Min.setMinimumSize(buttonSize);
-        
-        // Make buttons look clickable
-        btn3Min.setFocusPainted(false);
-        btn5Min.setFocusPainted(false);
-        btn7Min.setFocusPainted(false);
-        btn3Min.setBorderPainted(true);
-        btn5Min.setBorderPainted(true);
-        btn7Min.setBorderPainted(true);
-        
-        // Default selected state (store in class-level variable)
-        this.selectedTimeLimit = 3;
-        btn3Min.setBackground(new Color(50, 150, 255));
-        btn3Min.setForeground(Color.WHITE);
-        
-        // Ensure time buttons are always enabled and visible
-        btn3Min.setEnabled(true);
-        btn5Min.setEnabled(true);
-        btn7Min.setEnabled(true);
-        
-        // Add button borders to make them more prominent
-        btn3Min.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 2),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        ));
-        btn5Min.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 2),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        ));
-        btn7Min.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 2),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        ));
-        
-        // Add button action listeners
-        btn3Min.addActionListener(e -> {
-            selectedTimeLimit = 3;
-            // Update button appearances
-            btn3Min.setBackground(new Color(100, 150, 255));
-            btn3Min.setForeground(Color.WHITE);
-            btn5Min.setBackground(new Color(230, 230, 255));
-            btn5Min.setForeground(Color.BLACK);
-            btn7Min.setBackground(new Color(230, 230, 255));
-            btn7Min.setForeground(Color.BLACK);
-            System.out.println("Time limit set to 3 minutes");
-        });
-        
-        btn5Min.addActionListener(e -> {
-            selectedTimeLimit = 5;
-            // Update button appearances
-            btn3Min.setBackground(new Color(230, 230, 255));
-            btn3Min.setForeground(Color.BLACK);
-            btn5Min.setBackground(new Color(100, 150, 255));
-            btn5Min.setForeground(Color.WHITE);
-            btn7Min.setBackground(new Color(230, 230, 255));
-            btn7Min.setForeground(Color.BLACK);
-            System.out.println("Time limit set to 5 minutes");
-        });
-        
-        btn7Min.addActionListener(e -> {
-            selectedTimeLimit = 7;
-            // Update button appearances
-            btn3Min.setBackground(new Color(230, 230, 255));
-            btn3Min.setForeground(Color.BLACK);
-            btn5Min.setBackground(new Color(230, 230, 255));
-            btn5Min.setForeground(Color.BLACK);
-            btn7Min.setBackground(new Color(100, 150, 255));
-            btn7Min.setForeground(Color.WHITE);
-            System.out.println("Time limit set to 7 minutes");
-        });
-        
-        // Add buttons to panel
+        timeLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+
+        buttonPanel = new JPanel(new GridLayout(3, 1, 10, 10));
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JButton btn3Min = createTimeButton("3 MINUTES", 3);
+        JButton btn5Min = createTimeButton("5 MINUTES", 5);
+        JButton btn7Min = createTimeButton("7 MINUTES", 7);
         buttonPanel.add(btn3Min);
         buttonPanel.add(btn5Min);
         buttonPanel.add(btn7Min);
-        
-        // Assemble timer panel
+
         timerOptionsPanel.add(timeLabel, BorderLayout.NORTH);
         timerOptionsPanel.add(buttonPanel, BorderLayout.CENTER);
-        
-        // Add timer options to game mode panel
-        gameModePanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        gameModePanel.add(timerOptionsPanel);
-        
-        // Enable/disable timer options based on mode selection - fixed for button UI
-        timeAttackButton.addActionListener(e -> {
-            System.out.println("Time Attack Mode selected");
-            
-            // Make timer panel more visible with bright red border and background
-            timerOptionsPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(Color.RED, 3), "Time Limit (Select One)"));
-            timerOptionsPanel.setBackground(new Color(255, 230, 230));
-            timerOptionsPanel.setOpaque(true);
-            
-            // Enable all buttons in the timer panel and highlight them
-            for (Component comp : buttonPanel.getComponents()) {
-                if (comp instanceof JButton) {
-                    comp.setEnabled(true);
-                }
-            }
-            
-            // Ensure timer options panel is visible and all UI elements are properly refreshed
-            timerOptionsPanel.setVisible(true);
-            timerOptionsPanel.invalidate();
-            timerOptionsPanel.validate();
-            timerOptionsPanel.repaint();
-            
-            // Force full UI refresh
-            gameModePanel.invalidate();
-            gameModePanel.validate();
-            gameModePanel.repaint();
-            settingsPanel.invalidate();
-            settingsPanel.validate();
-            settingsPanel.repaint();
-            this.invalidate();
-            this.validate();
-            this.repaint();
-            
-            // Debug info
-            System.out.println("Time Attack Mode: Timer panel enabled, selectedTimeLimit=" + selectedTimeLimit);
-        });
-        
-        normalModeButton.addActionListener(e -> {
-            System.out.println("Normal Mode selected");
-            
-            // KEEP the timer panel visible but visually indicate it's not active
-            timerOptionsPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(Color.GRAY, 2), "Time Limit (Disabled in Normal Mode)"));
-            timerOptionsPanel.setBackground(new Color(240, 240, 240)); // Light gray
-            
-            // Don't disable the buttons - just gray them out
-            for (Component comp : buttonPanel.getComponents()) {
-                if (comp instanceof JButton) {
-                    JButton btn = (JButton)comp;
-                    btn.setBackground(new Color(220, 220, 220));
-                    btn.setForeground(Color.GRAY);
-                }
-            }
-            
-            // Keep panel visible - this is critical
-            timerOptionsPanel.setVisible(true);
-            
-            // Ensure UI updates
-            timerOptionsPanel.repaint();
-            gameModePanel.revalidate();
-            gameModePanel.repaint();
-            settingsPanel.invalidate();
-            settingsPanel.validate();
-            settingsPanel.repaint();
-            this.invalidate();
-            this.validate();
-            this.repaint();
-            
-            System.out.println("Normal Mode: Timer panel visually disabled but still visible");
-        });
-        
-        // Info label
+
+        panel.add(timerOptionsPanel);
+        panel.add(Box.createRigidArea(new Dimension(0, 15)));
+
         JLabel timerInfoLabel = new JLabel("<html>In Time Attack Mode, you must solve<br>the puzzle before time runs out!</html>");
-        timerInfoLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        timerInfoLabel.setFont(new Font("serif", Font.ITALIC, 12));
-        gameModePanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        gameModePanel.add(timerInfoLabel);
-
-        // Control button panel
-        JPanel controlButtonPanel = new JPanel();
-        controlButtonPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 20, 10));
-
-        JButton startButton = new JButton("Start Game");
-        startButton.addActionListener(e -> startGame());
-
-        JButton backButton = new JButton("Back");
-        backButton.addActionListener(e -> goBack());
-
-        controlButtonPanel.add(backButton);
-        controlButtonPanel.add(startButton);
-
-        // Add panels to settings
-        settingsPanel.add(difficultyPanel);
-        settingsPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        settingsPanel.add(gameModePanel);
-
-        // Add panels to frame
-        this.add(titlePanel, BorderLayout.NORTH);
-        this.add(settingsPanel, BorderLayout.CENTER);
-        this.add(controlButtonPanel, BorderLayout.SOUTH);
-
-        // Make frame scrollable to ensure all content is accessible
-        JScrollPane scrollPane = new JScrollPane(settingsPanel);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        
-        // Replace main panel with scrollable panel
-        this.remove(settingsPanel);
-        this.add(scrollPane, BorderLayout.CENTER);
-
-        this.setLocationRelativeTo(null);
-        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-        
-        // Pack to ensure proper sizing
-        this.pack();
-
-        // Handle window close event
-        this.addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                parentFrame.setVisible(true);
+        timerInfoLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+        timerInfoLabel.setForeground(new Color(100, 100, 100));
+        panel.add(timerInfoLabel);
+        timeAttackButton.addActionListener(e -> {
+            timerOptionsPanel.setBorder(BorderFactory.createLineBorder(PRIMARY_COLOR, 2, true));
+            timerOptionsPanel.setBackground(Color.WHITE);
+            for (Component comp : buttonPanel.getComponents()) {
+                if (comp instanceof JButton) {
+                    JButton btn = (JButton) comp;
+                    if (btn.isEnabled()) {
+                        btn.setBackground(btn.getText().equals("3 MINUTES") ?
+                                (selectedTimeLimit == 3 ? PRIMARY_COLOR : new Color(240, 240, 220)) :
+                                (btn.getText().equals("5 MINUTES") ?
+                                        (selectedTimeLimit == 5 ? PRIMARY_COLOR : new Color(240, 240, 220)) :
+                                        (selectedTimeLimit == 7 ? PRIMARY_COLOR : new Color(240, 240, 220))));
+                        btn.setForeground(btn.getText().equals("3 MINUTES") ?
+                                (selectedTimeLimit == 3 ? Color.WHITE : PRIMARY_COLOR) :
+                                (btn.getText().equals("5 MINUTES") ?
+                                        (selectedTimeLimit == 5 ? Color.WHITE : PRIMARY_COLOR) :
+                                        (selectedTimeLimit == 7 ? Color.WHITE : PRIMARY_COLOR)));
+                    }
+                }
             }
         });
+
+        normalModeButton.addActionListener(e -> {
+            timerOptionsPanel.setBorder(BorderFactory.createLineBorder(DISABLED_COLOR, 2, true));
+            timerOptionsPanel.setBackground(new Color(240, 240, 220));
+            for (Component comp : buttonPanel.getComponents()) {
+                JButton btn = (JButton) comp;
+                btn.setBackground(DISABLED_COLOR);
+                btn.setForeground(Color.GRAY);
+            }
+        });
+
+        return panel;
     }
 
+    private JButton createTimeButton(String text, int time) {
+        JButton button = new JButton(text);
+        button.setFont(BUTTON_FONT);
+        button.setPreferredSize(new Dimension(240, 50));
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(PRIMARY_COLOR, 2, true),
+                new EmptyBorder(8, 16, 8, 16)
+        ));
+        button.setContentAreaFilled(false);
+        button.setOpaque(true);
+
+        if (time == selectedTimeLimit) {
+            button.setBackground(PRIMARY_COLOR);
+            button.setForeground(Color.WHITE);
+        } else {
+            button.setBackground(new Color(240, 240, 220));
+            button.setForeground(PRIMARY_COLOR);
+        }
+
+        button.addActionListener(e -> {
+            selectedTimeLimit = time;
+            for (Component comp : buttonPanel.getComponents()) {
+                JButton btn = (JButton) comp;
+                if (btn == button) {
+                    btn.setBackground(PRIMARY_COLOR);
+                    btn.setForeground(Color.WHITE);
+                } else {
+                    btn.setBackground(new Color(240, 240, 220));
+                    btn.setForeground(PRIMARY_COLOR);
+                }
+            }
+        });
+
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                JButton btn = (JButton) e.getSource();
+                if (btn.isEnabled() && !btn.getBackground().equals(PRIMARY_COLOR)) {
+                    btn.setBackground(new Color(230, 230, 210));
+                }
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                JButton btn = (JButton) e.getSource();
+                if (btn.isEnabled() && !btn.getBackground().equals(PRIMARY_COLOR)) {
+                    btn.setBackground(new Color(240, 240, 220));
+                }
+            }
+        });
+
+        return button;
+    }
     private void startGame() {
-        // Get selected level
         int selectedLevel = 0;
         for (int i = 0; i < levelButtons.length; i++) {
             if (levelButtons[i].isSelected()) {
@@ -452,32 +597,12 @@ public class GameSettingsFrame extends JFrame {
             }
         }
 
-        // Configure time attack mode
         boolean timeAttackMode = timeAttackButton.isSelected();
-        
-        // Get time limit if time attack mode is enabled
-        int timeLimit = 3; // Default to 3 minutes
-        if (timeAttackMode) {
-            // Use the selectedTimeLimit field that's set by button clicks
-            timeLimit = selectedTimeLimit;
-            System.out.println("Setting time limit to " + timeLimit + " minutes from button selection");
-            
-            // Debug output for time attack settings
-            System.out.println("Time Attack Mode enabled with " + timeLimit + " minute limit");
-        } else {
-            System.out.println("Normal Mode selected (no time limit)");
-        }
+        int timeLimit = timeAttackMode ? selectedTimeLimit : 3;
 
-        // Set game level
         gameFrame.getController().setLevel(selectedLevel);
-
-        // Enable or disable timer with selected time limit
         gameFrame.setTimeAttackMode(timeAttackMode, timeLimit);
-
-        // Set the parent frame reference so the "Return to Menu" button works
         gameFrame.setParentFrame(parentFrame);
-
-        // Show game frame
         gameFrame.setVisible(true);
         this.dispose();
     }
@@ -485,5 +610,20 @@ public class GameSettingsFrame extends JFrame {
     private void goBack() {
         parentFrame.setVisible(true);
         this.dispose();
+    }
+
+    private class BackgroundPanel extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (backgroundImage != null) {
+                int width = getWidth();
+                int height = getHeight();
+                g.drawImage(backgroundImage, 0, 0, width, height, this);
+
+                g.setColor(new Color(255, 255, 255, 180));
+                g.fillRect(0, 0, width, height);
+            }
+        }
     }
 }
