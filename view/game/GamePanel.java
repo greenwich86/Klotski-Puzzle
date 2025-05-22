@@ -9,7 +9,9 @@ import javax.swing.border.Border;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
 /**
  * It is the subclass of ListenerPanel, so that it should implement those four methods: do move left, up, down ,right.
  * The class contains a grids, which is the corresponding GUI view of the matrix variable in MapMatrix.
@@ -445,9 +447,9 @@ public class GamePanel extends ListenerPanel {
     @Override
     public void doMoveRight() {
         System.out.println("Click VK_RIGHT");
-        // Only allow move if no animations are currently running
         if (selectedBox != null && !isAnyBoxAnimating()) {
             if (controller.doMove(selectedBox.getRow(), selectedBox.getCol(), Direction.RIGHT)) {
+                playMoveSound(); // 移动成功播放音效
                 afterMove();
             }
         } else if (isAnyBoxAnimating()) {
@@ -458,9 +460,9 @@ public class GamePanel extends ListenerPanel {
     @Override
     public void doMoveLeft() {
         System.out.println("Click VK_LEFT");
-        // Only allow move if no animations are currently running
         if (selectedBox != null && !isAnyBoxAnimating()) {
             if (controller.doMove(selectedBox.getRow(), selectedBox.getCol(), Direction.LEFT)) {
+                playMoveSound(); // 音效
                 afterMove();
             }
         } else if (isAnyBoxAnimating()) {
@@ -471,9 +473,9 @@ public class GamePanel extends ListenerPanel {
     @Override
     public void doMoveUp() {
         System.out.println("Click VK_Up");
-        // Only allow move if no animations are currently running
         if (selectedBox != null && !isAnyBoxAnimating()) {
             if (controller.doMove(selectedBox.getRow(), selectedBox.getCol(), Direction.UP)) {
+                playMoveSound(); // 音效
                 afterMove();
             }
         } else if (isAnyBoxAnimating()) {
@@ -484,9 +486,9 @@ public class GamePanel extends ListenerPanel {
     @Override
     public void doMoveDown() {
         System.out.println("Click VK_DOWN");
-        // Only allow move if no animations are currently running
         if (selectedBox != null && !isAnyBoxAnimating()) {
             if (controller.doMove(selectedBox.getRow(), selectedBox.getCol(), Direction.DOWN)) {
+                playMoveSound(); // 音效
                 afterMove();
             }
         } else if (isAnyBoxAnimating()) {
@@ -640,7 +642,17 @@ public class GamePanel extends ListenerPanel {
         Border border = BorderFactory.createLineBorder(Color.DARK_GRAY, 2);
         this.setBorder(border);
     }
-
+    private void playMoveSound() {
+        new Thread(() -> {
+            try {
+                AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(GamePanel.class.getResourceAsStream("/resource/move.wav"));
+                Clip clip = AudioSystem.getClip();
+                clip.open(audioInputStream);
+                clip.start();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();}
     public void updateMoveCount(int count) {
         this.steps = count;
         if (stepLabel != null) {
