@@ -12,8 +12,7 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 
 public class GameFrame extends JFrame {
     private Clip victorySound;
@@ -29,6 +28,32 @@ public class GameFrame extends JFrame {
     private GamePanel gamePanel;
     private Timer countdownTimer;
     public PropPanel propPanel;
+
+    private void setButtonStyle(JButton button, Color bgColor, Color borderColor) {
+        button.setFont(new Font("微软雅黑", Font.BOLD, 14));
+        button.setForeground(Color.WHITE);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 2),
+                BorderFactory.createEmptyBorder(5, 15, 5, 15)
+        ));
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        final Color originalBg = bgColor;
+        final Color hoverBg = borderColor.darker();
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(hoverBg);
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(originalBg);
+            }
+        });
+    }
 
     /**
      * Gets the prop panel
@@ -79,7 +104,6 @@ public class GameFrame extends JFrame {
         try {
             gamePanel = new GamePanel(mapModel);
             JScrollPane scrollPane = new JScrollPane(gamePanel);
-            // Disable scrollbars to ensure entire board is visible without scrolling
             scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
             scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
             this.add(scrollPane, BorderLayout.CENTER);
@@ -98,7 +122,6 @@ public class GameFrame extends JFrame {
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
         controlPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Create props panel with more prominence and visibility
         propPanel = new PropPanel(controller, this);
         propPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
         propPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -107,13 +130,10 @@ public class GameFrame extends JFrame {
         ));
         propPanel.setBackground(new Color(230, 230, 255));
         propPanel.setOpaque(true);
-        // Always make the prop panel visible, but update its appearance based on current level
         propPanel.setVisible(true);
-        // Set minimum size to ensure visibility
         propPanel.setMinimumSize(new Dimension(200, 180));
         propPanel.setPreferredSize(new Dimension(220, 200));
 
-        // Make sure props are properly initialized based on current level
         updatePropPanelVisibility(controller.getCurrentLevel());
 
         // Step counter and timer
@@ -138,105 +158,93 @@ public class GameFrame extends JFrame {
         controlPanel.add(statsPanel);
         controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
 
-        // Add the props panel
         controlPanel.add(propPanel);
         controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
 
         gamePanel.setStepLabel(stepLabel);
 
-        // AI button to automatically solve puzzle
+        // AI Solve按钮（蓝色系）
         JButton aiButton = new JButton("AI Solve");
         aiButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        aiButton.addActionListener(e -> {
-            // Create a new AI solver and run it
-            AISolver solver = new AISolver(controller.getModel(), controller);
-
-            // Show loading message
-            JLabel statusLabel = new JLabel("AI solving puzzle...");
-            JProgressBar progressBar = new JProgressBar();
-            progressBar.setIndeterminate(true);
-
-            JPanel progressPanel = new JPanel(new BorderLayout(10, 10));
-            progressPanel.add(statusLabel, BorderLayout.NORTH);
-            progressPanel.add(progressBar, BorderLayout.CENTER);
-
-            JDialog loadingDialog = new JDialog(this, "AI Solver", false);
-            loadingDialog.setLayout(new BorderLayout());
-            loadingDialog.add(progressPanel, BorderLayout.CENTER);
-            loadingDialog.setSize(250, 100);
-            loadingDialog.setLocationRelativeTo(this);
-
-            // Start solving in a separate thread to keep UI responsive
-            new SwingWorker<Boolean, Void>() {
-                @Override
-                protected Boolean doInBackground() {
-                    return solver.findSolution();
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        boolean solutionFound = get();
-                        loadingDialog.dispose();
-
-                        if (solutionFound) {
-                            int solutionLength = solver.getSolutionLength();
-                            int option = JOptionPane.showConfirmDialog(
-                                    GameFrame.this,
-                                    "Solution found with " + solutionLength + " moves!\nExecute solution?",
-                                    "AI Solution",
-                                    JOptionPane.YES_NO_OPTION,
-                                    JOptionPane.INFORMATION_MESSAGE
-                            );
-
-                            if (option == JOptionPane.YES_OPTION) {
-                                solver.executeSolution();
-                            }
-                        } else {
-                            JOptionPane.showMessageDialog(
-                                    GameFrame.this,
-                                    "No solution found for the current puzzle state.",
-                                    "AI Solver",
-                                    JOptionPane.ERROR_MESSAGE
-                            );
-                        }
-                    } catch (Exception ex) {
-                        loadingDialog.dispose();
-                        JOptionPane.showMessageDialog(
-                                GameFrame.this,
-                                "Error solving puzzle: " + ex.getMessage(),
-                                "AI Solver Error",
-                                JOptionPane.ERROR_MESSAGE
-                        );
-                        ex.printStackTrace();
-                    }
-
-                    gamePanel.requestFocusInWindow();
-                }
-            }.execute();
-
-            loadingDialog.setVisible(true);
-        });
+        setButtonStyle(aiButton, new Color(232, 189, 189), new Color(156, 206, 211));
         controlPanel.add(aiButton);
         controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
 
-        // Action buttons
+        // 按钮十字
+        JPanel directionPanel = new JPanel(new GridLayout(3, 3, 5, 5));
+        directionPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        directionPanel.setOpaque(false);
+        directionPanel.setPreferredSize(new Dimension(150, 150));
+
+        Dimension btnSize = new Dimension(45, 45); // 按钮
+
+// 上
+        JButton upBtn = new JButton("↑");
+        upBtn.addActionListener(e -> {
+            gamePanel.doMoveUp();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(upBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        upBtn.setPreferredSize(btnSize);
+        directionPanel.add(Box.createGlue()); // (0,0) 空白占位
+        directionPanel.add(upBtn);          // (0,1) 上按钮
+        directionPanel.add(Box.createGlue()); // (0,2) 空白占位
+
+// 左、右
+        JButton leftBtn = new JButton("←");
+        leftBtn.addActionListener(e -> {
+            gamePanel.doMoveLeft();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(leftBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        leftBtn.setPreferredSize(btnSize);
+        directionPanel.add(leftBtn);        // (1,0) 左按钮
+        directionPanel.add(Box.createGlue()); // (1,1) 中间空白
+        JButton rightBtn = new JButton("→");
+        rightBtn.addActionListener(e -> {
+            gamePanel.doMoveRight();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(rightBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        rightBtn.setPreferredSize(btnSize);
+        directionPanel.add(rightBtn);       // (1,2) 右按钮
+
+// 下
+        JButton downBtn = new JButton("↓");
+        downBtn.addActionListener(e -> {
+            gamePanel.doMoveDown();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(downBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        downBtn.setPreferredSize(btnSize);
+        directionPanel.add(Box.createGlue()); // (2,0) 空白占位
+        directionPanel.add(downBtn);         // (2,1) 下按钮
+        directionPanel.add(Box.createGlue()); // (2,2) 空白占位
+
+        controlPanel.add(directionPanel);
+        controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
+
+        // Restart按钮
         this.restartBtn = new JButton("Restart");
         restartBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        setButtonStyle(restartBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         restartBtn.addActionListener(e -> {
             controller.restartGame();
             gamePanel.requestFocusInWindow();
         });
-
+        // Undo
         JButton undoBtn = new JButton("Undo");
         undoBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        setButtonStyle(undoBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         undoBtn.addActionListener(e -> {
             controller.undoMove();
             gamePanel.requestFocusInWindow();
         });
 
+        // Load
         this.loadBtn = new JButton("Load");
         loadBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        setButtonStyle(loadBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         loadBtn.addActionListener(e -> {
             if (guestMode) {
                 JOptionPane.showMessageDialog(this, "Guest users cannot load games");
@@ -246,8 +254,10 @@ public class GameFrame extends JFrame {
             }
         });
 
+        // Save
         JButton saveBtn = new JButton("Save");
         saveBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        setButtonStyle(saveBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         saveBtn.addActionListener(e -> {
             if (guestMode) {
                 JOptionPane.showMessageDialog(this, "Guest users cannot save games");
@@ -257,9 +267,10 @@ public class GameFrame extends JFrame {
             }
         });
 
-        // Return to Menu button
-        JButton returnToMenuBtn = new JButton("♻ Return to Menu");
+        // 返回菜单
+        JButton returnToMenuBtn = new JButton("Return to Menu");
         returnToMenuBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        setButtonStyle(returnToMenuBtn, new Color(156, 206, 211), new Color(232, 189, 189));
         returnToMenuBtn.addActionListener(e -> {
             returnToMenu();
         });
@@ -277,14 +288,12 @@ public class GameFrame extends JFrame {
         this.add(controlPanel, BorderLayout.EAST);
         this.setLocationRelativeTo(null);
 
-        // Add window listener to handle focus when frame becomes active
-        this.addWindowListener(new java.awt.event.WindowAdapter() {
-            public void windowActivated(java.awt.event.WindowEvent e) {
+        this.addWindowListener(new WindowAdapter() {
+            public void windowActivated(WindowEvent e) {
                 gamePanel.requestFocusInWindow();
             }
         });
 
-        // Initial focus requests
         this.requestFocusInWindow();
         gamePanel.requestFocusInWindow();
     }
@@ -294,12 +303,9 @@ public class GameFrame extends JFrame {
      */
     private void returnToMenu() {
         if (parentFrame != null) {
-            // Stop timer if running
             if (countdownTimer != null && countdownTimer.isRunning()) {
                 countdownTimer.stop();
             }
-
-            // Show the menu frame and hide this frame
             parentFrame.setVisible(true);
             this.setVisible(false);
         } else {
@@ -315,7 +321,6 @@ public class GameFrame extends JFrame {
         if (guestMode) {
             this.setTitle("2025 CS109 Project Demo (Guest Mode)");
             this.loadBtn.setEnabled(false);
-            // Also disable Save button in guest mode
             for (Component c : this.getContentPane().getComponents()) {
                 if (c instanceof JButton && ((JButton)c).getText().equals("Save")) {
                     ((JButton)c).setEnabled(false);
@@ -324,7 +329,6 @@ public class GameFrame extends JFrame {
         } else {
             this.setTitle("2025 CS109 Project Demo");
             this.loadBtn.setEnabled(true);
-            // Enable Save button when not in guest mode
             for (Component c : this.getContentPane().getComponents()) {
                 if (c instanceof JButton && ((JButton)c).getText().equals("Save")) {
                     ((JButton)c).setEnabled(true);
@@ -345,11 +349,6 @@ public class GameFrame extends JFrame {
         this.parentFrame = parentFrame;
     }
 
-    /**
-     * Updates the visibility of the prop panel based on the current level
-     *
-     * @param level The current level (0-3)
-     */
     public void updatePropPanelVisibility(int level) {
         if (propPanel != null) {
             boolean propsAllowed = MapModel.LEVEL_PROPS_ALLOWED[level];
@@ -358,18 +357,16 @@ public class GameFrame extends JFrame {
                     " (name: " + MapModel.LEVEL_NAMES[level] +
                     ", props allowed: " + propsAllowed + ")");
 
-            // Always make the panel visible regardless of level
             propPanel.setVisible(true);
 
             if (!propsAllowed) {
-                // For levels with no props, display information but keep panel visible
-                if (level == 3) { // Master level
+                if (level == 3) {
                     propPanel.setToolTipText("Props are disabled in Master difficulty");
                     propPanel.setBorder(BorderFactory.createTitledBorder(
                             BorderFactory.createLineBorder(Color.RED, 2),
                             "Props (Disabled in Master)"
                     ));
-                } else { // Easy level
+                } else {
                     propPanel.setToolTipText("Props are disabled in Easy difficulty");
                     propPanel.setBorder(BorderFactory.createTitledBorder(
                             BorderFactory.createLineBorder(Color.GRAY, 2),
@@ -377,27 +374,21 @@ public class GameFrame extends JFrame {
                     ));
                 }
             } else {
-                // Show active prop panel for Hard and Expert levels
                 propPanel.setToolTipText("Use props to help solve the puzzle");
                 propPanel.setBorder(BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(100, 100, 255), 3),
                         "Available Props"
                 ));
 
-                // Reinitialize controller's props to ensure they're properly set up
                 controller.initializeProps(level);
 
-                // Log prop counts for debugging
                 System.out.println("Level " + level + " prop counts: " +
                         "Hint: " + controller.getPropCount(Prop.PropType.HINT) + ", " +
                         "Time Bonus: " + controller.getPropCount(Prop.PropType.TIME_BONUS) + ", " +
                         "Obstacle Remover: " + controller.getPropCount(Prop.PropType.OBSTACLE_REMOVER));
             }
 
-            // Always update prop availability regardless of level
             propPanel.updatePropAvailability();
-
-            // Force repaint, revalidation, and ensure parent container updates
             propPanel.revalidate();
             propPanel.repaint();
             this.revalidate();
@@ -407,54 +398,34 @@ public class GameFrame extends JFrame {
         }
     }
 
-    // Store remaining time
     private int currentTimeLeft = 0;
 
-    /**
-     * Adds time to the countdown timer (for Time Bonus prop)
-     *
-     * @param secondsToAdd Number of seconds to add to the timer
-     * @return True if time was added successfully, false if not in time attack mode
-     */
     public boolean addTimeToTimer(int secondsToAdd) {
         if (!timeAttackMode || countdownTimer == null || !countdownTimer.isRunning()) {
             return false;
         }
 
-        // Add the time to our currentTimeLeft field
         currentTimeLeft += secondsToAdd;
-
-        // Update the timer display
         updateTimerDisplay(currentTimeLeft);
-
-        // Temporarily highlight the timer to show it was updated
         highlightTimerUpdate();
-
         return true;
     }
 
-    /**
-     * Highlights the timer label to show it was updated
-     */
     private void highlightTimerUpdate() {
-        // Store original colors
         final Color originalFg = timerLabel.getForeground();
         final Color originalBg = timerLabel.getBackground();
         final boolean wasOpaque = timerLabel.isOpaque();
 
-        // Create a flash animation
         Timer flashTimer = new Timer(150, new ActionListener() {
             private int count = 0;
 
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (count % 2 == 0) {
-                    // Highlight phase
                     timerLabel.setForeground(Color.WHITE);
                     timerLabel.setBackground(new Color(0, 150, 0));
                     timerLabel.setOpaque(true);
                 } else {
-                    // Normal phase
                     timerLabel.setForeground(originalFg);
                     timerLabel.setBackground(originalBg);
                     timerLabel.setOpaque(wasOpaque);
@@ -463,11 +434,8 @@ public class GameFrame extends JFrame {
                 timerLabel.repaint();
                 count++;
 
-                // Stop after 4 flashes (2 cycles)
                 if (count >= 4) {
                     ((Timer)e.getSource()).stop();
-
-                    // Restore original state
                     timerLabel.setForeground(originalFg);
                     timerLabel.setBackground(originalBg);
                     timerLabel.setOpaque(wasOpaque);
@@ -480,44 +448,29 @@ public class GameFrame extends JFrame {
         flashTimer.start();
     }
 
-    /**
-     * Enables or disables time attack mode with a specified time limit.
-     *
-     * @param enabled Whether time attack mode is enabled
-     * @param minutes Time limit in minutes (3, 5, or 7)
-     */
     public void setTimeAttackMode(boolean enabled, int minutes) {
         this.timeAttackMode = enabled;
         this.timeLimit = minutes;
 
-        // Stop any existing timer
         if (countdownTimer != null && countdownTimer.isRunning()) {
             countdownTimer.stop();
         }
 
         if (enabled) {
-            // Show timer label
             timerLabel.setVisible(true);
-
-            // Convert minutes to seconds and store in the field for consistent use
             currentTimeLeft = minutes * 60;
-
-            // Format and display initial time
             updateTimerDisplay(currentTimeLeft);
 
-            // Create and start countdown timer using the field instead of local variable
             countdownTimer = new Timer(1000, e -> {
                 currentTimeLeft--;
                 updateTimerDisplay(currentTimeLeft);
 
-                // Change color when time is running low
                 if (currentTimeLeft <= 60) {
                     timerLabel.setForeground(Color.RED);
                 } else {
                     timerLabel.setForeground(Color.BLACK);
                 }
 
-                // Game over when time runs out
                 if (currentTimeLeft <= 0) {
                     ((Timer)e.getSource()).stop();
                     timeAttackGameOver();
@@ -526,25 +479,17 @@ public class GameFrame extends JFrame {
 
             countdownTimer.start();
         } else {
-            // Hide timer label in normal mode
             timerLabel.setVisible(false);
         }
     }
 
-    /**
-     * Updates the timer display with formatted time
-     */
     private void updateTimerDisplay(int seconds) {
         int mins = seconds / 60;
         int secs = seconds % 60;
         timerLabel.setText(String.format("Time: %02d:%02d", mins, secs));
     }
 
-    /**
-     * Handles game over when time runs out in Time Attack Mode
-     */
     private void timeAttackGameOver() {
-        // Flash timer label
         Timer flashTimer = new Timer(250, new ActionListener() {
             private int count = 0;
             @Override
@@ -568,10 +513,6 @@ public class GameFrame extends JFrame {
         flashTimer.start();
     }
 
-    /**
-     * Shows game over dialog and returns to the menu
-     */
-
     private void playVictorySound() {
         new Thread(() -> {
             try {
@@ -586,6 +527,7 @@ public class GameFrame extends JFrame {
             }
         }).start();
     }
+
     private void showVictoryDialog() {
         playVictorySound();
 
@@ -610,27 +552,21 @@ public class GameFrame extends JFrame {
 
         JOptionPane.showMessageDialog(this, contentPanel, "Victory", JOptionPane.PLAIN_MESSAGE);
     }
+
     private void showTimeAttackGameOver() {
         JOptionPane.showMessageDialog(this,
                 "<html><h2>TIME'S UP!</h2><br>You ran out of time!</html>",
                 "Game Over",
                 JOptionPane.ERROR_MESSAGE);
 
-        // Instead of restarting, return to the menu
         if (parentFrame != null) {
-            // Stop timer if running
             if (countdownTimer != null && countdownTimer.isRunning()) {
                 countdownTimer.stop();
             }
-
-            // Show the menu frame and hide this frame
             parentFrame.setVisible(true);
             this.setVisible(false);
         } else {
-            // If no parent frame, just restart
             controller.restartGame();
-
-            // Reset and restart timer
             if (timeAttackMode) {
                 setTimeAttackMode(true, timeLimit);
             }
