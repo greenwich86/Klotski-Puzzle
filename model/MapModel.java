@@ -12,77 +12,77 @@ package model;
  * 10 = Military Camp (soldiers cannot step on)
  */
 public class MapModel {
-    public static final int CAO_CAO = 1;
-    public static final int GUAN_YU = 2;
-    public static final int GENERAL = 3;
-    public static final int SOLDIER = 4;
-    public static final int ZHOU_YU = 5; // 1x3 horizontal block
-    public static final int BLOCKED = 9; // Immovable obstacle
+    public static final int CAO_CAO = 1;    // 2x2 size, 1 piece
+    public static final int GUAN_YU = 2;    // 2x1 size, 1 piece
+    public static final int GENERAL = 3;    // 1x2 size, 4 pieces
+    public static final int SOLDIER = 4;    // 1x1 size, 4 pieces
+    public static final int ZHOU_YU = 5;    // 1x3 horizontal block
+    public static final int BLOCKED = 9;    // Immovable obstacle
     public static final int MILITARY_CAMP = 10; // Military camp - only soldiers can step on
-
+    
     // Difficulty level names
     public static final String[] LEVEL_NAMES = {
-            "Easy", "Hard", "Expert", "Master"
+        "Easy", "Hard", "Expert", "Master"
     };
-
+    
     // Props availability per level
     public static final boolean[] LEVEL_PROPS_ALLOWED = {
-            false, // Easy - no props
-            true,  // Hard - props allowed
-            true,  // Expert - props allowed
-            false  // Master - no props
+        false, // Easy - no props
+        true,  // Hard - props allowed
+        true,  // Expert - props allowed
+        false  // Master - no props
     };
-
+    
     // Time attack enforced settings
     public static final boolean[] LEVEL_TIME_ATTACK_ENFORCED = {
-            false, // Easy - optional time attack
-            false, // Hard - optional time attack
-            false, // Expert - optional time attack
-            true   // Master - enforced 5 min time attack
+        false, // Easy - optional time attack
+        false, // Hard - optional time attack
+        false, // Expert - optional time attack
+        true   // Master - enforced 5 min time attack
     };
-
+    
     // Default time for enforced time attack levels (in minutes)
     public static final int DEFAULT_MASTER_TIME_LIMIT = 5;
-
+    
     int[][] matrix;
+    private int currentLevel = 0;  // Default to first level
+    
     public static final int[][][] LEVELS = {
-            // Level 0 - Easy (4x5) Classic configuration
-            {
-                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-                    {SOLDIER, 0, 0, SOLDIER},
-                    {GENERAL, SOLDIER, SOLDIER, GENERAL},
-                    {GENERAL, GUAN_YU, GUAN_YU, GENERAL}
-            },
-            // Level 1 - Hard (5x6) with Cao Cao at top middle
-            {
-                    {0, BLOCKED, CAO_CAO, CAO_CAO, BLOCKED},
-                    {0, BLOCKED, CAO_CAO, CAO_CAO, BLOCKED},
-                    {SOLDIER, SOLDIER, 0, 0, SOLDIER},
-                    {GENERAL, GENERAL, SOLDIER, SOLDIER, GENERAL},
-                    {0, GENERAL, GUAN_YU, GUAN_YU, GENERAL},
-                    {0, SOLDIER, 0, BLOCKED, SOLDIER}
-            },
-            // Level 2 - Expert (6x7) with more blocks
-            {
-                    {0, 0, CAO_CAO, CAO_CAO, 0, 0},
-                    {0, 0, CAO_CAO, CAO_CAO, 0, 0},
-                    {SOLDIER, BLOCKED, 0, 0, BLOCKED, SOLDIER},
-                    {GENERAL, SOLDIER, SOLDIER, SOLDIER, SOLDIER, GENERAL},
-                    {GENERAL, GUAN_YU, GUAN_YU, GUAN_YU, GUAN_YU, GENERAL},
-                    {SOLDIER, 0, 0, BLOCKED, 0, SOLDIER},
-                    {0, 0, ZHOU_YU, ZHOU_YU, ZHOU_YU, 0}
-            },
-            // Level 3 - Master (6x7) with Military Camp obstacles
-            {
-                    {0, MILITARY_CAMP, CAO_CAO, CAO_CAO, MILITARY_CAMP, 0},
-                    {0, 0, CAO_CAO, CAO_CAO, 0, 0},
-                    {SOLDIER, BLOCKED, 0, 0, BLOCKED, SOLDIER},
-                    {GENERAL, SOLDIER, SOLDIER, SOLDIER, SOLDIER, GENERAL},
-                    {GENERAL, GUAN_YU, GUAN_YU, GUAN_YU, GUAN_YU, GENERAL},
-                    {SOLDIER, MILITARY_CAMP, 0, BLOCKED, MILITARY_CAMP, SOLDIER},
-                    {0, 0, ZHOU_YU, ZHOU_YU, ZHOU_YU, 0}
-            }
+        // Level 0 - Easy (4x5) 经典可解布局 - 横刀立马
+        {
+            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+            {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER},
+            {GENERAL, SOLDIER, SOLDIER, GENERAL},
+            {GENERAL, 0, 0, GENERAL}
+        },
+        // Level 1 - Hard (6x4) 兵分三路
+        {
+            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+            {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER},
+            {0, 0, 0, BLOCKED},
+            {GENERAL, SOLDIER, SOLDIER, GENERAL},
+            {GENERAL, 0, 0, GENERAL}
+        },
+        // Level 2 - Expert (6x5) 巧过五关
+        {
+                {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, SOLDIER, BLOCKED},
+                {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, BLOCKED, 0},
+                {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER, BLOCKED, 0},
+                {SOLDIER, ZHOU_YU, ZHOU_YU, ZHOU_YU, SOLDIER, 0},
+                {GENERAL, SOLDIER, SOLDIER, GENERAL, MILITARY_CAMP, 0},
+                {GENERAL, 0, 0, GENERAL, 0, 0}
+        },
+        // Level 3 - Master (6x5) 四面楚歌
+        {
+            {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, SOLDIER, 0},
+            {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, BLOCKED, 0},
+            {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER, SOLDIER, 0},
+            {0, ZHOU_YU, ZHOU_YU, ZHOU_YU, 0, 0},
+            {SOLDIER, SOLDIER, SOLDIER, SOLDIER, 0, 0},
+            {0, 0, 0, 0, 0, 0}
+        }
     };
 
     public MapModel() {
@@ -93,6 +93,7 @@ public class MapModel {
         if (level < 0 || level >= LEVELS.length) {
             level = 0;
         }
+        this.currentLevel = level;
         int rows = LEVELS[level].length;
         int cols = LEVELS[level][0].length;
         this.matrix = new int[rows][cols];
@@ -103,10 +104,6 @@ public class MapModel {
 
     public MapModel(int[][] matrix) {
         this.matrix = matrix;
-    }
-
-    public MapModel(int width, int height) {
-        this.matrix = new int[height][width];
     }
 
     public int getWidth() {
@@ -125,6 +122,10 @@ public class MapModel {
         return matrix;
     }
 
+    /**
+     * Set the board matrix to a custom layout
+     * @param matrix The new board layout
+     */
     public void setMatrix(int[][] matrix) {
         if (matrix == null || matrix.length == 0 || matrix[0].length == 0) {
             throw new IllegalArgumentException("Invalid matrix dimensions");
@@ -151,74 +152,7 @@ public class MapModel {
         return copy;
     }
 
-    public void clearBoard() {
-        for (int i = 0; i < matrix.length; i++) {
-            for (int j = 0; j < matrix[0].length; j++) {
-                matrix[i][j] = 0;
-            }
-        }
-    }
-
-    public void setCell(int row, int col, int value) {
-        if (row >= 0 && row < matrix.length && col >= 0 && col < matrix[0].length) {
-            matrix[row][col] = value;
-        }
-    }
-
-    /**
-     * Load a predefined layout
-     */
-    public void loadLayout(String difficulty) {
-        clearBoard();
-        
-        switch (difficulty.toLowerCase()) {
-            case "easy":
-                // Easy layout: Just Cao Cao
-                int[][] easyLayout = {
-                    {0, CAO_CAO, CAO_CAO, 0},
-                    {0, CAO_CAO, CAO_CAO, 0},
-                    {0, 0, 0, 0},
-                    {0, 0, 0, 0},
-                    {0, 0, 0, 0}
-                };
-                setMatrix(easyLayout);
-                break;
-                
-            case "hard":
-                // Hard layout: Cao Cao + 4 Soldiers
-                int[][] hardLayout = {
-                    {0, 0, 0, 0},
-                    {0, CAO_CAO, CAO_CAO, 0},
-                    {SOLDIER, CAO_CAO, CAO_CAO, 0},
-                    {0, SOLDIER, SOLDIER, 0},
-                    {0, 0, SOLDIER, 0}
-                };
-                setMatrix(hardLayout);
-                break;
-                
-            case "expert":
-                // Expert layout: Cao Cao + 4 Soldiers + 4 Generals
-                int[][] expertLayout = {
-                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-                    {SOLDIER, 0, 0, SOLDIER},
-                    {GENERAL, SOLDIER, SOLDIER, GENERAL},
-                    {GENERAL, GUAN_YU, GUAN_YU, GENERAL}
-                };
-                setMatrix(expertLayout);
-                break;
-                
-            case "master":
-                // Master layout: Complete puzzle
-                int[][] masterLayout = {
-                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-                    {SOLDIER, 0, 0, SOLDIER},
-                    {GENERAL, SOLDIER, SOLDIER, GENERAL},
-                    {GENERAL, GUAN_YU, GUAN_YU, GENERAL}
-                };
-                setMatrix(masterLayout);
-                break;
-        }
+    public int getCurrentLevel() {
+        return currentLevel;
     }
 }

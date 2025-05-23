@@ -525,6 +525,25 @@ public class GamePanel extends ListenerPanel {
         return selectedBox;
     }
 
+    /**
+     * Sets the selected box component
+     * Used by the AI solver to select pieces for movement
+     *
+     * @param box The box component to select
+     */
+    public void setSelectedBox(BoxComponent box) {
+        // Deselect current box if any
+        if (selectedBox != null) {
+            selectedBox.setSelected(false);
+        }
+        
+        // Set new selected box
+        selectedBox = box;
+        if (selectedBox != null) {
+            selectedBox.setSelected(true);
+        }
+    }
+
     public int getGRID_SIZE() {
         return GRID_SIZE;
     }

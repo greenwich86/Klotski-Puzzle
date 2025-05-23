@@ -40,9 +40,6 @@ public class GameController {
     private Map<Prop.PropType, Prop> availableProps = new HashMap<>();
     private ArrayList<int[]> removedObstacles = new ArrayList<>(); // [row, col, stepsRemaining]
 
-    private int selectedRow = -1;
-    private int selectedCol = -1;
-
     public GameController(GamePanel view, MapModel model) {
         this.moveHistory = new Stack<>();
         this.view = view;
@@ -208,7 +205,7 @@ public class GameController {
         return true;
     }
 
-    public boolean canMove(int row, int col, int width, int height, Direction direction) {
+    private boolean canMove(int row, int col, int width, int height, Direction direction) {
         // System.err.println("Checking move from ["+row+"]["+col+"] size "+width+"x"+height+" dir "+direction);
 
         // Get the block type being moved
@@ -344,8 +341,16 @@ public class GameController {
 
         boolean canMove = canMove(row, col, width, height, direction);
 
-        // Get the selected box component
-        final BoxComponent box = view.getSelectedBox();
+        // Find and select the box component for this position
+        BoxComponent box = findBoxAtPosition(row, col);
+        if (box == null) {
+            System.out.println("Warning: No box component found for move at [" + row + "," + col + "]");
+            return false;
+        }
+
+        // Select the box before attempting to move
+        view.setSelectedBox(box);
+        final BoxComponent selectedBox = view.getSelectedBox();
 
         if (canMove) {
             // Calculate new top-left position
@@ -356,12 +361,12 @@ public class GameController {
             final int[][] originalMatrix = model.copyMatrix();
 
             // Store original position for animations
-            final int originalX = box.getX();
-            final int originalY = box.getY();
+            final int originalX = selectedBox.getX();
+            final int originalY = selectedBox.getY();
 
             // Update the component's logical position
-            box.setRow(nextRow);
-            box.setCol(nextCol);
+            selectedBox.setRow(nextRow);
+            selectedBox.setCol(nextCol);
 
             // Clear the old positions in the model
             clearOldPositions(row, col, width, height);
@@ -386,47 +391,47 @@ public class GameController {
 
             // Debug positioning calculation
             System.out.println("Target position: (" + targetX + "," + targetY + ")");
-            System.out.println("Current position: (" + box.getX() + "," + box.getY() + ")");
-            System.out.println("Movement delta: (" + (targetX - box.getX()) + "," + (targetY - box.getY()) + ")");
+            System.out.println("Current position: (" + selectedBox.getX() + "," + selectedBox.getY() + ")");
+            System.out.println("Movement delta: (" + (targetX - selectedBox.getX()) + "," + (targetY - selectedBox.getY()) + ")");
 
             // Force minimum movement delta based on direction
             // This ensures animation always has a meaningful distance to travel
             int minDelta = GRID_SIZE / 2; // Minimum 35px movement
 
             // Set direction-specific deltas
-            if (direction == Direction.LEFT && targetX >= box.getX()) {
-                targetX = box.getX() - GRID_SIZE;
+            if (direction == Direction.LEFT && targetX >= selectedBox.getX()) {
+                targetX = selectedBox.getX() - GRID_SIZE;
                 System.out.println("Forcing LEFT movement, new targetX: " + targetX);
             }
-            else if (direction == Direction.RIGHT && targetX <= box.getX()) {
-                targetX = box.getX() + GRID_SIZE;
+            else if (direction == Direction.RIGHT && targetX <= selectedBox.getX()) {
+                targetX = selectedBox.getX() + GRID_SIZE;
                 System.out.println("Forcing RIGHT movement, new targetX: " + targetX);
             }
-            else if (direction == Direction.UP && targetY >= box.getY()) {
-                targetY = box.getY() - GRID_SIZE;
+            else if (direction == Direction.UP && targetY >= selectedBox.getY()) {
+                targetY = selectedBox.getY() - GRID_SIZE;
                 System.out.println("Forcing UP movement, new targetY: " + targetY);
             }
-            else if (direction == Direction.DOWN && targetY <= box.getY()) {
-                targetY = box.getY() + GRID_SIZE;
+            else if (direction == Direction.DOWN && targetY <= selectedBox.getY()) {
+                targetY = selectedBox.getY() + GRID_SIZE;
                 System.out.println("Forcing DOWN movement, new targetY: " + targetY);
             }
 
             // Debug new delta
             System.out.println("Adjusted movement delta: (" +
-                    (targetX - box.getX()) + "," + (targetY - box.getY()) + ")");
+                    (targetX - selectedBox.getX()) + "," + (targetY - selectedBox.getY()) + ")");
 
             // Safety check bounds
             if (targetX < 0) targetX = 0;
             if (targetY < 0) targetY = 0;
-            if (targetX > view.getWidth() - box.getWidth()) {
-                targetX = view.getWidth() - box.getWidth();
+            if (targetX > view.getWidth() - selectedBox.getWidth()) {
+                targetX = view.getWidth() - selectedBox.getWidth();
             }
-            if (targetY > view.getHeight() - box.getHeight()) {
-                targetY = view.getHeight() - box.getHeight();
+            if (targetY > view.getHeight() - selectedBox.getHeight()) {
+                targetY = view.getHeight() - selectedBox.getHeight();
             }
 
             // Mark as animating
-            box.setAnimating(true);
+            selectedBox.setAnimating(true);
 
             // Use a fixed animation duration for all pieces - longer to ensure smooth movement
             int animationDuration = 350; // Increased duration for even smoother animation
@@ -438,13 +443,13 @@ public class GameController {
 
             // Create animation handler with improved version
             final AnimationHandler animation = new AnimationHandler(
-                    box,
+                    selectedBox,
                     targetX,
                     targetY,
                     animationDuration,
                     () -> {
                         // Animation complete callback
-                        box.setAnimating(false);
+                        selectedBox.setAnimating(false);
 
                         // Special handling for General pieces, but in a unified way
                         if (isGeneral) {
@@ -458,10 +463,10 @@ public class GameController {
                             }
 
                             // Ensure repaint happens regardless
-                            box.repaint();
+                            selectedBox.repaint();
                         } else {
                             // For other pieces, just repaint
-                            box.repaint();
+                            selectedBox.repaint();
                         }
 
                         // Save game state - shared logic for all pieces
@@ -484,10 +489,10 @@ public class GameController {
             return true;
         } else {
             // Enhanced collision feedback with small shake animation
-            if (box != null) {
+            if (selectedBox != null) {
                 // Store original position for the shake animation
-                final int originalX = box.getX();
-                final int originalY = box.getY();
+                final int originalX = selectedBox.getX();
+                final int originalY = selectedBox.getY();
 
                 // Calculate shake direction based on attempted move
                 final int shakeDistance = 5; // Subtle shake distance
@@ -495,13 +500,13 @@ public class GameController {
                 final int dirY = direction == Direction.UP ? -1 : (direction == Direction.DOWN ? 1 : 0);
 
                 // Highlight the piece
-                box.setSelected(true);
+                selectedBox.setSelected(true);
 
                 // Store original color
-                final Color originalBackground = box.getBackground();
+                final Color originalBackground = selectedBox.getBackground();
 
                 // Set collision background
-                box.setBackground(new Color(255, 100, 100, 150));
+                selectedBox.setBackground(new Color(255, 100, 100, 150));
 
                 // Create a shake animation sequence with 6 steps
                 Timer shakeTimer = new Timer(40, new ActionListener() {
@@ -513,23 +518,23 @@ public class GameController {
                         if (step < shakePattern.length) {
                             // Calculate new position for this shake step
                             int offset = shakePattern[step] * shakeDistance;
-                            box.setLocation(originalX + (dirX * offset), originalY + (dirY * offset));
+                            selectedBox.setLocation(originalX + (dirX * offset), originalY + (dirY * offset));
 
                             // Update alpha for fading effect
                             int alpha = Math.max(50, 150 - (step * 20));
-                            box.setBackground(new Color(255, 100, 100, alpha));
+                            selectedBox.setBackground(new Color(255, 100, 100, alpha));
 
                             step++;
                         } else {
                             // Animation complete, restore original state
-                            box.setLocation(originalX, originalY);
-                            box.setSelected(false);
-                            box.setBackground(originalBackground);
+                            selectedBox.setLocation(originalX, originalY);
+                            selectedBox.setSelected(false);
+                            selectedBox.setBackground(originalBackground);
                             ((javax.swing.Timer)e.getSource()).stop();
                         }
 
                         // Force repaint at each step
-                        box.repaint();
+                        selectedBox.repaint();
                     }
                 });
 
@@ -734,8 +739,28 @@ public class GameController {
      * Find a box component at a specific position
      */
     private BoxComponent findBoxAtPosition(int row, int col) {
+        // Add debug information
+        System.out.println("Finding box at position [" + row + "," + col + "]");
+        System.out.println("Current piece type: " + model.getId(row, col));
+        System.out.println("Total boxes in view: " + view.getBoxes().size());
+
+        // First, check if there's a box component exactly at this position
         for (BoxComponent box : view.getBoxes()) {
-            int pieceType = model.getId(row, col);
+            if (box.getRow() == row && box.getCol() == col) {
+                System.out.println("Found exact match at [" + row + "," + col + "]");
+                return box;
+            }
+        }
+
+        // If no exact match, try to find the origin of a multi-cell piece
+        int pieceType = model.getId(row, col);
+        System.out.println("No exact match, checking for multi-cell piece of type " + pieceType);
+
+        for (BoxComponent box : view.getBoxes()) {
+            // Debug each box's position and type
+            System.out.println("Checking box at [" + box.getRow() + "," + box.getCol() + 
+                             "] with type " + model.getId(box.getRow(), box.getCol()));
+            
             // For multi-cell pieces, we need to find the top-left corner
             int originRow = row;
             int originCol = col;
@@ -755,8 +780,32 @@ public class GameController {
                     originCol = col-1;
                 }
             } else if (pieceType == MapModel.GENERAL) { // 1x2
-                if (row > 0 && model.getId(row-1, col) == pieceType) {
+                System.out.println("Checking GENERAL piece at [" + row + "," + col + "]");
+                
+                // For GENERAL pieces, check both above and below
+                boolean foundAbove = (row > 0 && model.getId(row-1, col) == pieceType);
+                boolean foundBelow = (row < model.getHeight()-1 && model.getId(row+1, col) == pieceType);
+                
+                System.out.println("Found above: " + foundAbove + ", Found below: " + foundBelow);
+                
+                // Check if this is a position between two GENERAL pieces
+                if (foundAbove && foundBelow) {
+                    // If we're between two GENERAL pieces, check which one we're trying to move
+                    // by looking at the box's current position
+                    if (box.getRow() == row-1) {
+                        // This is the upper GENERAL piece
+                        originRow = row-1;
+                        System.out.println("Using upper GENERAL piece at [" + originRow + "," + originCol + "]");
+                    } else if (box.getRow() == row) {
+                        // This is the lower GENERAL piece
+                        System.out.println("Using lower GENERAL piece at [" + originRow + "," + originCol + "]");
+                    }
+                } else if (foundAbove) {
                     originRow = row-1;
+                    System.out.println("Using position above as origin: [" + originRow + "," + originCol + "]");
+                } else if (foundBelow) {
+                    // Keep current row as origin
+                    System.out.println("Using current position as origin: [" + originRow + "," + originCol + "]");
                 }
             } else if (pieceType == MapModel.ZHOU_YU) { // 1x3
                 if (col > 0 && model.getId(row, col-1) == pieceType) {
@@ -767,17 +816,24 @@ public class GameController {
                 }
             }
 
+            // Debug the origin position we're looking for
+            System.out.println("Looking for box at origin [" + originRow + "," + originCol + "]");
+            
             if (box.getRow() == originRow && box.getCol() == originCol) {
+                System.out.println("Found matching box at origin!");
                 return box;
             }
         }
+        
+        // If we get here, we didn't find the box
+        System.out.println("No box found at position [" + row + "," + col + "]");
         return null;
     }
 
     /**
      * Get a human-readable name for a piece type
      */
-    public String getPieceNameByType(int pieceType) {
+    private String getPieceNameByType(int pieceType) {
         switch (pieceType) {
             case MapModel.CAO_CAO:
                 return "Cao Cao (2x2 red)";
@@ -799,7 +855,7 @@ public class GameController {
     /**
      * Get a human-readable description of a direction
      */
-    public String getDirectionText(Direction dir) {
+    private String getDirectionText(Direction dir) {
         switch (dir) {
             case UP:
                 return "upward";
@@ -1184,6 +1240,16 @@ public class GameController {
     }
 
     /**
+     * Gets the GamePanel view
+     * Used by the AI solver to update the UI
+     *
+     * @return The GamePanel view instance
+     */
+    public GamePanel getView() {
+        return this.view;
+    }
+
+    /**
      * Selects the box at the specified board position
      * Used by the AI solver to move specific pieces
      *
@@ -1201,9 +1267,8 @@ public class GameController {
             return null;
         }
         
-        selectedRow = row;
-        selectedCol = col;
-        return view.getSelectedBox();
+        // Find and return the box component at this position
+        return findBoxAtPosition(row, col);
     }
 
     public boolean loadGame() {
