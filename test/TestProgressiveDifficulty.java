@@ -25,7 +25,9 @@ public class TestProgressiveDifficulty {
     @Test
     public void testEasyLayout() {
         // Test easy layout
-        model.loadLayout("easy");
+        model = new MapModel(0); // Easy level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue("Easy layout should be solvable", solver.findSolution());
         assertTrue("Solution should not be empty", solver.getSolutionLength() > 0);
     }
@@ -33,7 +35,9 @@ public class TestProgressiveDifficulty {
     @Test
     public void testHardLayout() {
         // Test hard layout
-        model.loadLayout("hard");
+        model = new MapModel(1); // Hard level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue("Hard layout should be solvable", solver.findSolution());
         assertTrue("Solution should not be empty", solver.getSolutionLength() > 0);
     }
@@ -41,7 +45,9 @@ public class TestProgressiveDifficulty {
     @Test
     public void testExpertLayout() {
         // Test expert layout
-        model.loadLayout("expert");
+        model = new MapModel(2); // Expert level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue("Expert layout should be solvable", solver.findSolution());
         assertTrue("Solution should not be empty", solver.getSolutionLength() > 0);
     }
@@ -49,7 +55,9 @@ public class TestProgressiveDifficulty {
     @Test
     public void testMasterLayout() {
         // Test master layout
-        model.loadLayout("master");
+        model = new MapModel(3); // Master level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue("Master layout should be solvable", solver.findSolution());
         assertTrue("Solution should not be empty", solver.getSolutionLength() > 0);
     }
@@ -57,19 +65,27 @@ public class TestProgressiveDifficulty {
     @Test
     public void testSolutionProgression() {
         // Test that harder layouts require more moves
-        model.loadLayout("easy");
+        model = new MapModel(0); // Easy level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue(solver.findSolution());
         int easyMoves = solver.getSolutionLength();
         
-        model.loadLayout("hard");
+        model = new MapModel(1); // Hard level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue(solver.findSolution());
         int hardMoves = solver.getSolutionLength();
         
-        model.loadLayout("expert");
+        model = new MapModel(2); // Expert level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue(solver.findSolution());
         int expertMoves = solver.getSolutionLength();
         
-        model.loadLayout("master");
+        model = new MapModel(3); // Master level
+        mockPanel.resetBoard(model.getMatrix()); // Update view's model
+        solver = new AISolver(model, controller); // Update solver with new model
         assertTrue(solver.findSolution());
         int masterMoves = solver.getSolutionLength();
         
