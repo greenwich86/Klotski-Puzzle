@@ -105,6 +105,10 @@ public class MapModel {
         this.matrix = matrix;
     }
 
+    public MapModel(int width, int height) {
+        this.matrix = new int[height][width];
+    }
+
     public int getWidth() {
         return this.matrix[0].length;
     }
@@ -121,6 +125,16 @@ public class MapModel {
         return matrix;
     }
 
+    public void setMatrix(int[][] matrix) {
+        if (matrix == null || matrix.length == 0 || matrix[0].length == 0) {
+            throw new IllegalArgumentException("Invalid matrix dimensions");
+        }
+        this.matrix = new int[matrix.length][matrix[0].length];
+        for (int i = 0; i < matrix.length; i++) {
+            System.arraycopy(matrix[i], 0, this.matrix[i], 0, matrix[i].length);
+        }
+    }
+
     public boolean checkInWidthSize(int col) {
         return col >= 0 && col < matrix[0].length;
     }
@@ -135,5 +149,76 @@ public class MapModel {
             System.arraycopy(matrix[i], 0, copy[i], 0, matrix[i].length);
         }
         return copy;
+    }
+
+    public void clearBoard() {
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[0].length; j++) {
+                matrix[i][j] = 0;
+            }
+        }
+    }
+
+    public void setCell(int row, int col, int value) {
+        if (row >= 0 && row < matrix.length && col >= 0 && col < matrix[0].length) {
+            matrix[row][col] = value;
+        }
+    }
+
+    /**
+     * Load a predefined layout
+     */
+    public void loadLayout(String difficulty) {
+        clearBoard();
+        
+        switch (difficulty.toLowerCase()) {
+            case "easy":
+                // Easy layout: Just Cao Cao
+                int[][] easyLayout = {
+                    {0, CAO_CAO, CAO_CAO, 0},
+                    {0, CAO_CAO, CAO_CAO, 0},
+                    {0, 0, 0, 0},
+                    {0, 0, 0, 0},
+                    {0, 0, 0, 0}
+                };
+                setMatrix(easyLayout);
+                break;
+                
+            case "hard":
+                // Hard layout: Cao Cao + 4 Soldiers
+                int[][] hardLayout = {
+                    {0, 0, 0, 0},
+                    {0, CAO_CAO, CAO_CAO, 0},
+                    {SOLDIER, CAO_CAO, CAO_CAO, 0},
+                    {0, SOLDIER, SOLDIER, 0},
+                    {0, 0, SOLDIER, 0}
+                };
+                setMatrix(hardLayout);
+                break;
+                
+            case "expert":
+                // Expert layout: Cao Cao + 4 Soldiers + 4 Generals
+                int[][] expertLayout = {
+                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                    {SOLDIER, 0, 0, SOLDIER},
+                    {GENERAL, SOLDIER, SOLDIER, GENERAL},
+                    {GENERAL, GUAN_YU, GUAN_YU, GENERAL}
+                };
+                setMatrix(expertLayout);
+                break;
+                
+            case "master":
+                // Master layout: Complete puzzle
+                int[][] masterLayout = {
+                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                    {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                    {SOLDIER, 0, 0, SOLDIER},
+                    {GENERAL, SOLDIER, SOLDIER, GENERAL},
+                    {GENERAL, GUAN_YU, GUAN_YU, GENERAL}
+                };
+                setMatrix(masterLayout);
+                break;
+        }
     }
 }

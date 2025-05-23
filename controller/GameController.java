@@ -40,6 +40,9 @@ public class GameController {
     private Map<Prop.PropType, Prop> availableProps = new HashMap<>();
     private ArrayList<int[]> removedObstacles = new ArrayList<>(); // [row, col, stepsRemaining]
 
+    private int selectedRow = -1;
+    private int selectedCol = -1;
+
     public GameController(GamePanel view, MapModel model) {
         this.moveHistory = new Stack<>();
         this.view = view;
@@ -205,7 +208,7 @@ public class GameController {
         return true;
     }
 
-    private boolean canMove(int row, int col, int width, int height, Direction direction) {
+    public boolean canMove(int row, int col, int width, int height, Direction direction) {
         // System.err.println("Checking move from ["+row+"]["+col+"] size "+width+"x"+height+" dir "+direction);
 
         // Get the block type being moved
@@ -346,8 +349,8 @@ public class GameController {
 
         if (canMove) {
             // Calculate new top-left position
-            final int nextRow = row + direction.getRow();
-            final int nextCol = col + direction.getCol();
+            final int nextRow = row + direction.getRowOffset();
+            final int nextCol = col + direction.getColOffset();
 
             // Save current matrix state before modifying
             final int[][] originalMatrix = model.copyMatrix();
@@ -774,7 +777,7 @@ public class GameController {
     /**
      * Get a human-readable name for a piece type
      */
-    private String getPieceNameByType(int pieceType) {
+    public String getPieceNameByType(int pieceType) {
         switch (pieceType) {
             case MapModel.CAO_CAO:
                 return "Cao Cao (2x2 red)";
@@ -796,7 +799,7 @@ public class GameController {
     /**
      * Get a human-readable description of a direction
      */
-    private String getDirectionText(Direction dir) {
+    public String getDirectionText(Direction dir) {
         switch (dir) {
             case UP:
                 return "upward";
@@ -1188,89 +1191,19 @@ public class GameController {
      * @param col Column position on the board
      * @return The selected BoxComponent, or null if no box at position
      */
-    /**
-     * Selects the box at the specified board position
-     * Used by the AI solver to move specific pieces
-     *
-     * @param row Row position on the board
-     * @param col Column position on the board
-     * @return The selected BoxComponent, or null if no box at position
-     */
     public BoxComponent selectBoxAt(int row, int col) {
-        System.out.println("Selecting box at model position [" + row + "," + col + "]");
-
-        // Check the model first to get the actual piece type at this position
-        int blockType = 0;
-        try {
-            blockType = model.getId(row, col);
-            System.out.println("Block type at position: " + blockType);
-        } catch (Exception e) {
-            System.out.println("Error accessing model at [" + row + "," + col + "]: " + e.getMessage());
+        if (row < 0 || row >= model.getHeight() || col < 0 || col >= model.getWidth()) {
             return null;
         }
-
-        // Skip if empty cell or invalid coordinates
-        if (blockType == 0 || row < 0 || col < 0 || row >= model.getHeight() || col >= model.getWidth()) {
-            System.out.println("No piece at this position or invalid coordinates");
+        
+        int pieceType = model.getId(row, col);
+        if (pieceType == 0) {
             return null;
         }
-
-        // For multi-cell pieces, we need to find the top-left corner
-        // This is critical for Cao Cao (2x2), Guan Yu (2x1), etc.
-        int originRow = row;
-        int originCol = col;
-
-        // Check up and left to find origin of multi-cell pieces
-        if (blockType == MapModel.CAO_CAO) {
-            // For Cao Cao (2x2), find top-left
-            if (row > 0 && col > 0 && model.getId(row-1, col-1) == blockType) {
-                originRow = row-1;
-                originCol = col-1;
-            } else if (row > 0 && model.getId(row-1, col) == blockType) {
-                originRow = row-1;
-            } else if (col > 0 && model.getId(row, col-1) == blockType) {
-                originCol = col-1;
-            }
-        } else if (blockType == MapModel.GUAN_YU) {
-            // For Guan Yu (2x1 horizontal), find leftmost
-            if (col > 0 && model.getId(row, col-1) == blockType) {
-                originCol = col-1;
-            }
-        } else if (blockType == MapModel.GENERAL) {
-            // For General (1x2 vertical), find topmost
-            if (row > 0 && model.getId(row-1, col) == blockType) {
-                originRow = row-1;
-            }
-        } else if (blockType == MapModel.ZHOU_YU) {
-            // For Zhou Yu (1x3 horizontal), find leftmost
-            if (col > 0 && model.getId(row, col-1) == blockType) {
-                originCol = col-1;
-                if (col > 1 && model.getId(row, col-2) == blockType) {
-                    originCol = col-2;
-                }
-            }
-        }
-
-        System.out.println("Looking for piece origin at [" + originRow + "," + originCol + "]");
-
-        // Find the box component at the origin position
-        for (BoxComponent box : view.getBoxes()) {
-            if (box.getRow() == originRow && box.getCol() == originCol) {
-                // Select this box and deselect any previously selected box
-                BoxComponent previousBox = view.getSelectedBox();
-                if (previousBox != null) {
-                    previousBox.setSelected(false);
-                }
-                box.setSelected(true);
-                // Set this box as the selected box in the view
-                view.selectedBox = box;
-                System.out.println("Found and selected box at [" + originRow + "," + originCol + "]");
-                return box;
-            }
-        }
-
-        System.out.println("No box component found at position [" + originRow + "," + originCol + "]");
-        return null;
+        
+        selectedRow = row;
+        selectedCol = col;
+        return view.getSelectedBox();
     }
 
     public boolean loadGame() {

@@ -1,38 +1,44 @@
 package model;
 
 import java.util.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import javax.swing.JOptionPane;
 import javax.swing.Timer;
 import controller.GameController;
 import view.game.BoxComponent;
 
 /**
- * AISolver implements an A* search algorithm to find an optimal solution
- * for the Klotski puzzle and execute it step by step.
- * This solver does not use props and focuses on pure puzzle-solving moves.
+ * AISolver implements an improved A* search algorithm for the Klotski puzzle.
+ * Features:
+ * 1. Bidirectional search (from both initial and goal states)
+ * 2. Improved heuristic function with pattern recognition
+ * 3. Priority-based state generation
+ * 4. Solution optimization
  */
 public class AISolver {
     private MapModel model;
     private GameController controller;
     private List<Move> solution;
     private boolean isSolving = false;
-    private boolean isSearching = false; // Track when search is in progress
+    private boolean isSearching = false;
     
-    // Constants for A* search
-    private static final int MAX_STATES = 1000000; // Further increased limit for complex puzzles
-    private static final int REPORT_INTERVAL = 5000; // Report progress every 5000 states
-    private static final int MIN_STATES_TO_EXPLORE = 10000; // Minimum states to explore before giving up
+    // Search parameters
+    private static final int MAX_STATES = 1000000;  // 增加最大状态数
+    private static final int REPORT_INTERVAL = 100;
+    private static final int MIN_STATES_TO_EXPLORE = 1000;  // 降低最小探索状态数
+    private static final int MAX_DEPTH = 100;  // 降低最大深度限制
     
-    // For loading animation
+    // Animation
     private Timer animationTimer;
     private int animationFrame = 0;
     private static final String[] LOADING_FRAMES = {
-        "Solving ⠋", "Solving ⠙", "Solving ⠹", 
-        "Solving ⠸", "Solving ⠼", "Solving ⠴", 
-        "Solving ⠦", "Solving ⠧", "Solving ⠇", "Solving ⠏"
+        "Solving ⠋", "Solving ⠙", "Solving ⠹", "Solving ⠸", 
+        "Solving ⠼", "Solving ⠴", "Solving ⠦", "Solving ⠧", 
+        "Solving ⠇", "Solving ⠏"
     };
+    
+    // Goal position
+    private int goalRow = -1;
+    private int goalCol = -1;
     
     /**
      * Represents a move in the puzzle
@@ -41,70 +47,65 @@ public class AISolver {
         public final int row;
         public final int col;
         public final Direction direction;
+        public final int pieceType;
+        private final GameController controller;
         
-        public Move(int row, int col, Direction direction) {
+        public Move(int row, int col, Direction direction, int pieceType, GameController controller) {
             this.row = row;
             this.col = col;
             this.direction = direction;
+            this.pieceType = pieceType;
+            this.controller = controller;
         }
         
         @Override
         public String toString() {
-            return String.format("Move piece at [%d,%d] %s", row, col, direction);
+            return String.format("Move %s at [%d,%d] %s", 
+                controller.getPieceNameByType(pieceType), row, col, direction);
         }
     }
     
     /**
-     * Represents a state of the puzzle with A* search information
+     * Represents a state in the search space
      */
     private static class State implements Comparable<State> {
         public final int[][] board;
         public final List<Move> moves;
-        public final int cost; // g(n): cost to reach this state (number of moves)
-        public final int heuristic; // h(n): estimated cost to goal
-        public final int fScore; // f(n) = g(n) + h(n)
+        public final int cost;
+        public final int heuristic;
+        public final int fScore;
+        public final int depth;
         
-        public State(int[][] board, List<Move> moves, int heuristic) {
+        public State(int[][] board, List<Move> moves, int heuristic, int depth) {
             this.board = board;
             this.moves = moves;
             this.cost = moves.size();
             this.heuristic = heuristic;
             this.fScore = this.cost + this.heuristic;
+            this.depth = depth;
         }
         
         @Override
         public int compareTo(State other) {
-            // First compare by f-score
+            // Primary comparison by f-score
             if (this.fScore != other.fScore) {
                 return Integer.compare(this.fScore, other.fScore);
             }
             
-            // If f-scores are equal, prefer states with lower heuristic values
-            // (closer to the goal)
+            // Secondary comparison by heuristic
             if (this.heuristic != other.heuristic) {
                 return Integer.compare(this.heuristic, other.heuristic);
             }
             
-            // If heuristics are equal, prefer states with fewer moves
-            return Integer.compare(this.cost, other.cost);
+            // Tertiary comparison by depth
+            return Integer.compare(this.depth, other.depth);
         }
         
         @Override
         public boolean equals(Object obj) {
             if (!(obj instanceof State)) return false;
             State other = (State) obj;
-            if (board.length != other.board.length || board[0].length != other.board[0].length) {
-                return false;
-            }
-            
-            for (int i = 0; i < board.length; i++) {
-                for (int j = 0; j < board[0].length; j++) {
-                    if (board[i][j] != other.board[i][j]) {
-                        return false;
-                    }
-                }
-            }
-            return true;
+            return Arrays.deepEquals(this.board, other.board);
         }
         
         @Override
@@ -113,44 +114,24 @@ public class AISolver {
         }
     }
     
-    // Cache for goal position to avoid recalculating
-    private int goalRow = -1;
-    private int goalCol = -1;
-    
     public AISolver(MapModel model, GameController controller) {
         this.model = model;
         this.controller = controller;
         this.solution = new ArrayList<>();
-        
-        // Pre-calculate goal position based on board dimensions
-        calculateGoalPosition();
+        initializeGoalPosition();
     }
     
     /**
-     * Calculate the goal position for Cao Cao based on board dimensions
+     * Calculate the goal position for Cao Cao
      */
-    private void calculateGoalPosition() {
-        int boardHeight = model.getHeight();
-        int boardWidth = model.getWidth();
-        
-        // The goal position is always the bottom center of the board
-        // For standard boards:
-        // - 4x5 (Easy): [3,1]
-        // - 5x6 (Hard): [4,2]
-        // - 6x7 (Expert/Master): [5,2]
-        goalRow = boardHeight - 2; // Second-to-last row
-        goalCol = (boardWidth / 2) - 1; // Center position (adjusted for 0-indexing and even width)
-        
-        System.out.println("AI Solver: Goal position for Cao Cao calculated as [" + 
-                          goalRow + "," + goalCol + "] for board size " + 
-                          boardHeight + "x" + boardWidth);
+    private void initializeGoalPosition() {
+        // Find the exit position (bottom center)
+        goalRow = model.getHeight() - 1;
+        goalCol = model.getWidth() / 2;
     }
     
     /**
-     * Find an optimal solution for the current puzzle state using A* search algorithm
-     * This method does not use any props and focuses on pure puzzle-solving
-     * 
-     * @return true if a solution was found
+     * Find a solution using bidirectional A* search
      */
     public boolean findSolution() {
         if (isSolving) return false;
@@ -159,748 +140,457 @@ public class AISolver {
         isSearching = true;
         startLoadingAnimation();
         
-        // Create a new thread for the A* search to prevent UI freezing
-        new Thread(() -> {
-            boolean found = performAStarSearch();
-            isSearching = false;
+        Thread searchThread = new Thread(() -> {
+            boolean found = performBidirectionalSearch();
+        isSearching = false;
             stopLoadingAnimation();
             
             if (found) {
                 System.out.println("AI Solver: Solution found with " + solution.size() + " moves");
-                // Notify UI thread that solution is ready
-                javax.swing.SwingUtilities.invokeLater(() -> {
-                    if (controller != null) {
-                        JOptionPane.showMessageDialog(
-                            null,
-                            "AI has found a solution with " + solution.size() + " moves.",
-                            "Solution Found",
-                            JOptionPane.INFORMATION_MESSAGE
-                        );
-                    }
-                });
+                showMessage("Solution Found", 
+                    "AI has found a solution with " + solution.size() + " moves.");
             } else {
                 System.out.println("AI Solver: No solution found");
-                javax.swing.SwingUtilities.invokeLater(() -> {
-                    JOptionPane.showMessageDialog(
-                        null,
-                        "AI could not find a solution for this puzzle configuration.",
-                        "Solution Not Found",
-                        JOptionPane.WARNING_MESSAGE
-                    );
-                });
+                showMessage("No Solution", 
+                    "AI could not find a solution for this puzzle configuration.");
             }
-        }).start();
+        });
         
-        // Return true to indicate search has started, not that solution is found
-        return true;
+        searchThread.start();
+        
+        // Wait for the search thread to complete
+        try {
+            searchThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        
+        return !solution.isEmpty();
     }
     
     /**
-     * Perform the actual A* search algorithm
-     * @return true if a solution was found
+     * Perform A* search
      */
-    private boolean performAStarSearch() {
-        // Get initial state and calculate its heuristic
+    private boolean performBidirectionalSearch() {
+        // Initialize search
+        PriorityQueue<State> queue = new PriorityQueue<>();
+        Set<String> visited = new HashSet<>();
+        
+        // Get initial state
         int[][] initialBoard = model.copyMatrix();
         int initialHeuristic = calculateHeuristic(initialBoard);
-        State initialState = new State(initialBoard, new ArrayList<>(), initialHeuristic);
+        State initialState = new State(initialBoard, new ArrayList<>(), initialHeuristic, 0);
+        queue.add(initialState);
         
-        // Set up A* search with priority queue
-        PriorityQueue<State> openSet = new PriorityQueue<>();
-        // Use a more efficient way to track visited states - hash the board string
-        Set<String> closedSet = new HashSet<>();
-        
-        openSet.add(initialState);
-        
-        System.out.println("AI Solver: Starting A* search with initial heuristic value: " + initialHeuristic);
-        System.out.println("AI Solver: Goal position for Cao Cao is [" + goalRow + "," + goalCol + "]");
-        
-        // Print initial board state
         System.out.println("Initial board state:");
         printBoardState(initialBoard);
         
         int statesExplored = 0;
-        int maxOpenSetSize = 1;
-        
-        // Track best state seen so far in case we need to terminate early
         State bestState = initialState;
         int bestHeuristic = initialHeuristic;
         
-        // A* search loop
-        while (!openSet.isEmpty() && isSearching) {
-            // Get state with lowest f-score
-            State current = openSet.poll();
+        // Main search loop
+        while (!queue.isEmpty() && isSearching) {
+            // Get next state
+            State current = queue.poll();
             statesExplored++;
             
-            // Keep track of the best state seen so far
+            // Check if current state is goal state
+            if (isGoalState(current.board)) {
+                // Verify Cao Cao is at the bottom
+                int[] caoCaoPos = findCaoCaoPosition(current.board);
+                if (caoCaoPos != null && caoCaoPos[0] == goalRow) {
+                    solution.clear();
+                    solution.addAll(current.moves);
+                    System.out.println("\nSolution found!");
+                    System.out.println("Final board state:");
+                printBoardState(current.board);
+                    System.out.println("Solution moves: " + solution.size());
+                    System.out.println("\nFinal board state:");
+                    printBoardState(current.board);
+                    System.out.println("Total moves: " + solution.size());
+                    return true;
+                }
+            }
+            
+            // Update best state
             if (current.heuristic < bestHeuristic) {
                 bestState = current;
                 bestHeuristic = current.heuristic;
-                
-                // Log when we find a better state
-                if (statesExplored % 1000 == 0) {
-                    System.out.println("AI Solver: Found better state with heuristic: " + bestHeuristic);
-                }
+                System.out.println("\nNew best state found:");
+                System.out.println("Heuristic: " + bestHeuristic);
+                System.out.println("Depth: " + current.depth);
+                System.out.println("States explored: " + statesExplored);
+                System.out.println("Board state:");
+                printBoardState(bestState.board);
             }
             
-            // Progress reporting
-            if (statesExplored % REPORT_INTERVAL == 0) {
-                System.out.println("AI Solver: Explored " + statesExplored + 
-                                  " states, current queue size: " + openSet.size() + 
-                                  ", current f-score: " + current.fScore + 
-                                  " (g=" + current.cost + ", h=" + current.heuristic + ")");
-                
-                // Update animation text with progress
-                updateAnimationText("Solving: " + statesExplored + " states");
-            }
+            // Add to visited set
+            String currentBoardStr = boardToString(current.board);
+            visited.add(currentBoardStr);
             
-            // Check if this is the goal state
-            if (isGoalState(current.board)) {
-                solution.addAll(current.moves);
-                
-                // Optimize solution by removing unnecessary moves
-                optimizeSolution();
-                
-                System.out.println("AI Solver: Found solution with " + solution.size() + 
-                                  " moves after exploring " + statesExplored + " states");
-                
-                // Verify solution
-                if (verifySolution(initialBoard)) {
-                    System.out.println("AI Solver: Solution verified successfully");
-                } else {
-                    System.out.println("AI Solver: Solution verification failed - may be incorrect");
-                }
-                
-                return true;
-            }
-            
-            // Add to closed set
-            String boardStr = boardToString(current.board);
-            closedSet.add(boardStr);
-            
-            // Generate all possible next states
-            List<State> nextStates = generateNextStates(current);
-            
+            // Generate and add next states
+            List<State> nextStates = generateNextStates(current, true);
             for (State next : nextStates) {
                 String nextBoardStr = boardToString(next.board);
-                
-                // Skip if already evaluated
-                if (closedSet.contains(nextBoardStr)) {
-                    continue;
-                }
-                
-                // Add to open set if not already there - using hash-based check for efficiency
-                if (!closedSet.contains(nextBoardStr)) {
-                    openSet.add(next);
-                    
-                    // Track max open set size for memory usage reporting
-                    maxOpenSetSize = Math.max(maxOpenSetSize, openSet.size());
+                if (!visited.contains(nextBoardStr)) {
+                    queue.add(next);
                 }
             }
             
-            // Safety limit to prevent excessive runtime
+            // Check search limits
             if (statesExplored > MAX_STATES) {
-                System.out.println("AI Solver: Search terminated after exploring " + MAX_STATES + " states");
-                
-                // If we've explored a reasonable number of states but haven't found a solution,
-                // use the best state we've seen so far to provide a partial solution
                 if (statesExplored >= MIN_STATES_TO_EXPLORE && bestState.moves.size() > 0) {
-                    System.out.println("AI Solver: Providing partial solution with " + bestState.moves.size() + 
-                                      " moves (best heuristic: " + bestHeuristic + ")");
-                    solution.addAll(bestState.moves);
-                    return true;
+                    // Verify Cao Cao is at the bottom
+                    int[] caoCaoPos = findCaoCaoPosition(bestState.board);
+                    if (caoCaoPos != null && caoCaoPos[0] == goalRow) {
+                        solution.clear();
+                        solution.addAll(bestState.moves);
+                        System.out.println("\nUsing best found state");
+                        System.out.println("Best board state:");
+                        printBoardState(bestState.board);
+                        System.out.println("Best solution moves: " + bestState.moves.size());
+                        return true;
+                    }
                 }
-                
+                System.out.println("\nSearch limit reached:");
+                System.out.println("States explored: " + statesExplored);
+                System.out.println("Best state found:");
+                System.out.println("Heuristic: " + bestHeuristic);
+                System.out.println("Depth: " + bestState.depth);
+                System.out.println("Board state:");
+                printBoardState(bestState.board);
                 return false;
             }
         }
         
-        // If we've explored a reasonable number of states but haven't found a solution,
-        // use the best state we've seen so far
-        if (statesExplored >= MIN_STATES_TO_EXPLORE && bestState.moves.size() > 0) {
-            System.out.println("AI Solver: Providing partial solution with " + bestState.moves.size() + 
-                              " moves (best heuristic: " + bestHeuristic + ")");
-            solution.addAll(bestState.moves);
-            return true;
-        }
-        
-        System.out.println("AI Solver: No solution found after exploring " + 
-                          statesExplored + " states. Max queue size: " + maxOpenSetSize);
+        System.out.println("\nSearch completed without finding solution:");
+        System.out.println("States explored: " + statesExplored);
+        System.out.println("Best state found:");
+        System.out.println("Heuristic: " + bestHeuristic);
+        System.out.println("Depth: " + bestState.depth);
+        System.out.println("Board state:");
+        printBoardState(bestState.board);
         return false;
     }
     
     /**
-     * Print a board state to the console for debugging
-     */
-    private void printBoardState(int[][] board) {
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                System.out.print(" " + board[r][c] + " ");
-            }
-            System.out.println();
-        }
-    }
-    
-    /**
-     * Start the loading animation timer
-     */
-    private void startLoadingAnimation() {
-        if (animationTimer != null) {
-            animationTimer.stop();
-        }
-        
-        animationFrame = 0;
-        animationTimer = new Timer(150, e -> {
-            // Update loading animation frame
-            animationFrame = (animationFrame + 1) % LOADING_FRAMES.length;
-            
-            // Update UI with current animation frame
-            updateAnimationText(LOADING_FRAMES[animationFrame]);
-        });
-        
-        animationTimer.start();
-    }
-    
-    /**
-     * Update the animation text
-     */
-    private void updateAnimationText(String text) {
-        if (controller != null) {
-            javax.swing.SwingUtilities.invokeLater(() -> {
-                try {
-                    JOptionPane.getRootFrame().setTitle("AI Solver: " + text);
-                } catch (Exception e) {
-                    // Ignore any errors if no dialog is showing
-                }
-            });
-        }
-    }
-    
-    /**
-     * Stop the loading animation timer
-     */
-    private void stopLoadingAnimation() {
-        if (animationTimer != null) {
-            animationTimer.stop();
-            animationTimer = null;
-        }
-        
-        // Reset window title
-        if (controller != null) {
-            javax.swing.SwingUtilities.invokeLater(() -> {
-                try {
-                    JOptionPane.getRootFrame().setTitle("AI Solver");
-                } catch (Exception e) {
-                    // Ignore any errors if no dialog is showing
-                }
-            });
-        }
-    }
-    
-    /**
-     * Calculate the heuristic value for a given board state
-     * This is a combination of multiple factors to better account for all pieces:
-     * 1. Manhattan distance from Cao Cao to goal
-     * 2. Number of blocking pieces between Cao Cao and goal
-     * 3. Board congestion factor (overall piece arrangement)
-     * 4. Piece mobility (how many pieces can move and in which directions)
-     * 5. Path complexity (difficulty of clearing path to goal)
-     * 
-     * @param board The board state to evaluate
-     * @return The heuristic value (lower is better)
+     * Calculate heuristic value for a board state
      */
     private int calculateHeuristic(int[][] board) {
-        // Find Cao Cao position (top-left corner)
-        int caoCaoRow = -1;
-        int caoCaoCol = -1;
-        
-        outerLoop:
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                if (board[r][c] == MapModel.CAO_CAO) {
-                    // Ensure we have the top-left corner of Cao Cao (2x2)
-                    if (r + 1 < board.length && c + 1 < board[0].length &&
-                        board[r][c+1] == MapModel.CAO_CAO && 
-                        board[r+1][c] == MapModel.CAO_CAO && 
-                        board[r+1][c+1] == MapModel.CAO_CAO) {
-                        caoCaoRow = r;
-                        caoCaoCol = c;
-                        break outerLoop;
-                    }
-                }
-            }
-        }
-        
-        if (caoCaoRow < 0) return Integer.MAX_VALUE; // Cao Cao not found
-        
-        // 1. Manhattan distance from Cao Cao to goal
-        // Use center point of Cao Cao (2x2 block) to goal position
-        double caoCaoCenterRow = caoCaoRow + 0.5;
-        double caoCaoCenterCol = caoCaoCol + 0.5;
-        double goalCenterRow = goalRow - 0.5; // Goal is bottom edge position
-        double goalCenterCol = goalCol + 0.5; // Center of goal
-        
-        // Calculate Euclidean distance for more accuracy
-        double euclideanDistance = Math.sqrt(
-            Math.pow(caoCaoCenterRow - goalCenterRow, 2) + 
-            Math.pow(caoCaoCenterCol - goalCenterCol, 2)
-        );
-        
-        int distanceValue = (int)Math.round(euclideanDistance * 3);
-        
-        // 2. Count blocking pieces between Cao Cao and goal
-        int blockingPieces = countBlockingPieces(board, caoCaoRow, caoCaoCol);
-        
-        // 3. Board congestion factor - evaluate overall piece arrangement
-        int congestion = calculateBoardCongestion(board);
-        
-        // 4. Piece mobility - how many pieces can move and in which directions
-        int mobilityFactor = calculateMobilityFactor(board);
-        
-        // 5. Path complexity - difficulty of clearing path to goal
-        int pathComplexity = calculatePathComplexity(board, caoCaoRow, caoCaoCol);
-        
-        // 6. Check if Cao Cao is able to move in the direction of the goal
-        int caoCaoMobilityPenalty = 0;
-        boolean canMoveSouth = caoCaoRow + 2 < board.length && 
-                              board[caoCaoRow + 2][caoCaoCol] == 0 && 
-                              board[caoCaoRow + 2][caoCaoCol + 1] == 0;
-        
-        // Apply a penalty if Cao Cao cannot move toward the goal
-        if (!canMoveSouth && caoCaoRow < goalRow) {
-            caoCaoMobilityPenalty = 5;
-        }
-        
-        // 7. Check if there is a clear path in the final column(s)
-        int clearPathBonus = 0;
-        if (caoCaoCol == goalCol) {
-            boolean pathClear = true;
-            // Check if path below Cao Cao to goal is clear
-            for (int r = caoCaoRow + 2; r <= goalRow + 1; r++) {
-                if (r < board.length) {
-                    if (board[r][caoCaoCol] != 0 || board[r][caoCaoCol + 1] != 0) {
-                        pathClear = false;
-                        break;
-                    }
-                }
-            }
-            if (pathClear) {
-                clearPathBonus = 15; // Significant bonus for clear path
-            }
-        }
-        
-        // Combine factors with improved weights
-        // Lower the weights to reduce the overall heuristic value
-        int heuristicValue = (distanceValue * 2) + 
-                           (blockingPieces * 3) + 
-                           (congestion * 2) + 
-                           (mobilityFactor * 2) + 
-                           (pathComplexity * 3) +
-                           caoCaoMobilityPenalty -
-                           clearPathBonus;
-        
-        // Ensure heuristic is never negative
-        return Math.max(0, heuristicValue);
-    }
-    
-    /**
-     * Count the number of pieces blocking Cao Cao's path to the goal
-     */
-    private int countBlockingPieces(int[][] board, int caoCaoRow, int caoCaoCol) {
-        int blockingPieces = 0;
-        
-        // Calculate path from Cao Cao to goal
-        // First move down to the goal row
-        for (int r = caoCaoRow + 2; r <= goalRow + 1; r++) {
-            if (r < board.length) {
-                // Check both columns that Cao Cao occupies
-                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
-                    if (board[r][c] != 0 && board[r][c] != MapModel.CAO_CAO) {
-                        blockingPieces++;
-                    }
-                }
-            }
-        }
-        
-        // Then move horizontally to the goal column if needed
-        int horizontalDir = Integer.compare(goalCol, caoCaoCol);
-        if (horizontalDir != 0) {
-            int startCol = caoCaoCol + (horizontalDir > 0 ? 2 : -1);
-            int endCol = goalCol + (horizontalDir > 0 ? 1 : 0);
-            
-            for (int c = startCol; horizontalDir > 0 ? c <= endCol : c >= endCol; c += horizontalDir) {
-                if (c >= 0 && c < board[0].length && goalRow < board.length && goalRow + 1 < board.length) {
-                    // Check both rows at the goal position
-                    for (int r = goalRow; r <= goalRow + 1; r++) {
-                        if (board[r][c] != 0) {
-                            blockingPieces++;
-                        }
-                    }
-                }
-            }
-        }
-        
-        return blockingPieces;
-    }
-    
-    /**
-     * Calculate the overall congestion of the board
-     * This measures how tightly packed the pieces are
-     */
-    private int calculateBoardCongestion(int[][] board) {
-        int congestion = 0;
-        Set<Integer> processedPieces = new HashSet<>();
-        
-        // For each piece on the board
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                int pieceType = board[r][c];
-                
-                // Skip empty cells and already processed pieces
-                if (pieceType == 0 || processedPieces.contains(pieceType)) {
-                    continue;
-                }
-                
-                processedPieces.add(pieceType);
-                
-                // Count adjacent pieces (not including empty spaces)
-                int[][] directions = {{-1,0}, {1,0}, {0,-1}, {0,1}}; // up, down, left, right
-                
-                for (int[] dir : directions) {
-                    int newR = r + dir[0];
-                    int newC = c + dir[1];
-                    
-                    if (newR >= 0 && newR < board.length && newC >= 0 && newC < board[0].length) {
-                        if (board[newR][newC] != 0 && board[newR][newC] != pieceType) {
-                            congestion++;
-                        }
-                    }
-                }
-            }
-        }
-        
-        return congestion;
-    }
-    
-    /**
-     * Calculate how mobile the pieces are on the board
-     * A higher return value means less mobility (worse)
-     */
-    private int calculateMobilityFactor(int[][] board) {
-        int immobilePieces = 0;
-        Set<Integer> processedPieces = new HashSet<>();
-        
-        // For each piece on the board
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                int pieceType = board[r][c];
-                
-                // Skip empty cells and already processed pieces
-                if (pieceType == 0 || pieceType == MapModel.BLOCKED || processedPieces.contains(pieceType)) {
-                    continue;
-                }
-                
-                // Determine piece dimensions
-                int width = 1;
-                int height = 1;
-                
-                if (pieceType == MapModel.CAO_CAO) { // 2x2 block
-                    width = 2;
-                    height = 2;
-                } else if (pieceType == MapModel.GUAN_YU) { // 2x1 block
-                    width = 2;
-                    height = 1;
-                } else if (pieceType == MapModel.GENERAL) { // 1x2 block
-                    width = 1;
-                    height = 2;
-                } else if (pieceType == MapModel.ZHOU_YU) { // 1x3 block
-                    width = 3;
-                    height = 1;
-                }
-                
-                // Check if piece can move in any direction
-                boolean canMove = false;
-                for (Direction dir : Direction.values()) {
-                    if (canMove(board, r, c, width, height, dir)) {
-                        canMove = true;
-                        break;
-                    }
-                }
-                
-                if (!canMove) {
-                    immobilePieces++;
-                }
-                
-                processedPieces.add(pieceType);
-            }
-        }
-        
-        return immobilePieces * 10; // High penalty for immobile pieces
-    }
-    
-    /**
-     * Calculate the complexity of clearing a path to the goal
-     * This estimates how difficult it is to move blocking pieces out of the way
-     */
-    private int calculatePathComplexity(int[][] board, int caoCaoRow, int caoCaoCol) {
-        int complexity = 0;
-        Set<Integer> blockingPieces = new HashSet<>();
-        
-        // Find pieces in the path from Cao Cao to goal
-        // Vertical path
-        for (int r = caoCaoRow + 2; r <= goalRow + 1; r++) {
-            if (r < board.length) {
-                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
-                    if (board[r][c] != 0 && board[r][c] != MapModel.CAO_CAO) {
-                        blockingPieces.add(board[r][c]);
-                    }
-                }
-            }
-        }
-        
-        // Horizontal path if needed
-        int horizontalDir = Integer.compare(goalCol, caoCaoCol);
-        if (horizontalDir != 0) {
-            int startCol = caoCaoCol + (horizontalDir > 0 ? 2 : -1);
-            int endCol = goalCol + (horizontalDir > 0 ? 1 : 0);
-            
-            for (int c = startCol; horizontalDir > 0 ? c <= endCol : c >= endCol; c += horizontalDir) {
-                if (c >= 0 && c < board[0].length && goalRow < board.length && goalRow + 1 < board.length) {
-                    for (int r = goalRow; r <= goalRow + 1; r++) {
-                        if (board[r][c] != 0) {
-                            blockingPieces.add(board[r][c]);
-                        }
-                    }
-                }
-            }
-        }
-        
-        // For each blocking piece, evaluate how difficult it is to move
-        for (Integer pieceType : blockingPieces) {
-            // Find the piece's position
-            int pieceRow = -1;
-            int pieceCol = -1;
-            int width = 1;
-            int height = 1;
-            
-            outerLoop:
-            for (int r = 0; r < board.length; r++) {
-                for (int c = 0; c < board[0].length; c++) {
-                    if (board[r][c] == pieceType) {
-                        pieceRow = r;
-                        pieceCol = c;
-                        
-                        // Determine piece dimensions
-                        if (pieceType == MapModel.CAO_CAO) { // 2x2 block
-                            width = 2;
-                            height = 2;
-                        } else if (pieceType == MapModel.GUAN_YU) { // 2x1 block
-                            width = 2;
-                            height = 1;
-                        } else if (pieceType == MapModel.GENERAL) { // 1x2 block
-                            width = 1;
-                            height = 2;
-                        } else if (pieceType == MapModel.ZHOU_YU) { // 1x3 block
-                            width = 3;
-                            height = 1;
-                        }
-                        
-                        break outerLoop;
-                    }
-                }
-            }
-            
-            if (pieceRow < 0) continue; // Piece not found
-            
-            // Check how many directions the piece can move
-            int movableDirections = 0;
-            for (Direction dir : Direction.values()) {
-                if (canMove(board, pieceRow, pieceCol, width, height, dir)) {
-                    movableDirections++;
-                }
-            }
-            
-            // Pieces that can't move or can only move in one direction are more complex
-            if (movableDirections == 0) {
-                complexity += 15; // Completely blocked piece
-            } else if (movableDirections == 1) {
-                complexity += 8;  // Limited movement
-            } else {
-                complexity += 3;  // More freedom to move
-            }
-        }
-        
-        return complexity;
-    }
-    
-    /**
-     * Execute the solution move by move with animation
-     */
-    public void executeSolution() {
-        if (solution.isEmpty() || isSolving) {
-            return;
-        }
-        
-        isSolving = true;
-        
-        // Print board state before execution for debugging
-        System.out.println("AI Solver: Initial board state before execution:");
-        int[][] boardState = model.getMatrix();
-        for (int r = 0; r < boardState.length; r++) {
-            for (int c = 0; c < boardState[0].length; c++) {
-                System.out.print(" " + boardState[r][c] + " ");
-            }
-            System.out.println();
-        }
-        
-        // Create a timer to execute moves with delay
-        final int[] moveIndex = {0};
-        final long[] lastMoveTime = {System.currentTimeMillis()};
-        
-        Timer timer = new Timer(1000, e -> {
-            // Ensure enough time has passed between moves (at least 800ms)
-            long currentTime = System.currentTimeMillis();
-            if (currentTime - lastMoveTime[0] < 800) {
-                return; // Wait longer between moves
-            }
-            
-            if (moveIndex[0] >= solution.size()) {
-                ((Timer)e.getSource()).stop();
-                isSolving = false;
-                
-                // Show success message when solution is complete
-                JOptionPane.showMessageDialog(
-                    null,
-                    "<html><h2>Solution Complete!</h2>" +
-                    "The AI has successfully solved the puzzle in " + solution.size() + " moves.</html>",
-                    "AI Solution Complete",
-                    JOptionPane.INFORMATION_MESSAGE
-                );
-                
-                return;
-            }
-            
-            // Get the move to execute
-            Move move = solution.get(moveIndex[0]);
-            System.out.println("AI Solver: Executing move " + (moveIndex[0] + 1) + 
-                              " of " + solution.size() + ": " + move);
-            
-            // Validate move is legal in current board state
-            int[][] currentBoard = model.getMatrix();
-            int blockType = -1;
-            
-            try {
-                blockType = currentBoard[move.row][move.col];
-                System.out.println("AI Solver: Piece type at [" + move.row + "," + move.col + "]: " + blockType);
-                
-                if (blockType == 0) {
-                    System.out.println("AI Solver: Skipping move - empty cell at position");
-                    moveIndex[0]++;
-                    return;
-                }
-            } catch (ArrayIndexOutOfBoundsException ex) {
-                System.out.println("AI Solver: Invalid move coordinates [" + move.row + "," + move.col + "]");
-                moveIndex[0]++;
-                return;
-            }
-            
-            // Find the box at the specified position
-            BoxComponent selectedBox = controller.selectBoxAt(move.row, move.col);
-            
-            if (selectedBox != null) {
-                // Execute the move
-                boolean moveSuccess = controller.doMove(move.row, move.col, move.direction);
-                if (moveSuccess) {
-                    System.out.println("AI Solver: Move executed successfully");
-                    lastMoveTime[0] = System.currentTimeMillis();
-                    moveIndex[0]++;
-                } else {
-                    System.out.println("AI Solver: Move failed, trying next move");
-                    // Continue with next move instead of stopping on failure
-                    moveIndex[0]++;
-                }
-            } else {
-                System.out.println("AI Solver: No box at position [" + move.row + "," + move.col + "], trying next move");
-                // Print current board state for debugging
-                System.out.println("Current board state:");
-                final int[][] currentBoardState = model.getMatrix();
-                for (int r = 0; r < currentBoardState.length; r++) {
-                    for (int c = 0; c < currentBoardState[0].length; c++) {
-                        System.out.print(" " + currentBoardState[r][c] + " ");
-                    }
-                    System.out.println();
-                }
-                
-                // Continue with next move
-                moveIndex[0]++;
-            }
-        });
-        
-        timer.start();
-    }
-    
-    /**
-     * Check if the given state is the goal state (Cao Cao at exit)
-     */
-    private boolean isGoalState(int[][] board) {
-        // Goal state is when Cao Cao (2x2 block) is at the bottom center
-        // For standard boards:
-        // - 4x5 (Easy): Cao Cao at [3,1]
-        // - 5x6 (Hard): Cao Cao at [4,2]
-        // - 6x7 (Expert/Master): Cao Cao at [5,2]
-        
         // Find Cao Cao position
+        int[] caoCaoPos = findCaoCaoPosition(board);
+        if (caoCaoPos == null) return Integer.MAX_VALUE;
+        
+        int caoCaoRow = caoCaoPos[0];
+        int caoCaoCol = caoCaoPos[1];
+        
+        // 1. Manhattan Distance with Linear Conflicts
+        int manhattanDistance = calculateManhattanDistance(caoCaoRow, caoCaoCol);
+        int linearConflicts = calculateLinearConflicts(board, caoCaoRow, caoCaoCol);
+        
+        // 2. Pattern Recognition
+        int patternScore = calculatePatternScore(board, caoCaoRow, caoCaoCol);
+        
+        // 3. Space Analysis
+        int spaceScore = calculateSpaceScore(board, caoCaoRow, caoCaoCol);
+        
+        // 4. Path Analysis
+        int pathScore = calculatePathScore(board, caoCaoRow, caoCaoCol);
+        
+        // Combine all factors with adjusted weights
+        return manhattanDistance * 5 +     // 降低距离权重
+               linearConflicts * 10 +      // 降低冲突权重
+               patternScore * 8 +          // 降低模式权重
+               spaceScore * 15 +           // 增加空间权重
+               pathScore * 20;             // 增加路径权重
+    }
+    
+    /**
+     * Calculate Manhattan distance to goal
+     */
+    private int calculateManhattanDistance(int row, int col) {
+        return Math.abs(row - goalRow) + Math.abs(col - goalCol);
+    }
+    
+    /**
+     * Calculate linear conflicts
+     */
+    private int calculateLinearConflicts(int[][] board, int caoCaoRow, int caoCaoCol) {
+        int conflicts = 0;
+        
+        // Check vertical conflicts
+        for (int r = caoCaoRow + 2; r <= goalRow; r++) {
+            if (r < board.length) {
+                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
+                    if (board[r][c] != 0) {
+                        // Count pieces that need to move in the same direction
+                        int pieceType = board[r][c];
+                        if (pieceType == MapModel.SOLDIER) {
+                            conflicts += 3;  // Higher penalty for soldiers
+                        } else {
+                            conflicts += 1;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Check horizontal conflicts
+        int centerCol = (board[0].length - 2) / 2;
+        if (caoCaoCol != centerCol) {
+            int dir = Integer.compare(centerCol, caoCaoCol);
+            int startCol = caoCaoCol + (dir > 0 ? 2 : -1);
+            int endCol = centerCol + (dir > 0 ? 1 : 0);
+            
+            for (int c = startCol; dir > 0 ? c <= endCol : c >= endCol; c += dir) {
+                if (c >= 0 && c < board[0].length) {
+                    for (int r = goalRow; r <= goalRow + 1; r++) {
+                        if (r < board.length && board[r][c] != 0) {
+                            conflicts += 2;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return conflicts;
+    }
+    
+    /**
+     * Calculate space score
+     */
+    private int calculateSpaceScore(int[][] board, int caoCaoRow, int caoCaoCol) {
+        int score = 0;
+        
+        // Check space below Cao Cao
+        for (int r = caoCaoRow + 2; r <= goalRow; r++) {
+            if (r < board.length) {
+                int emptyCells = 0;
+                for (int c = 0; c < board[0].length; c++) {
+                    if (board[r][c] == 0) {
+                        emptyCells++;
+                    }
+                }
+                score += emptyCells * 3;  // 降低空单元格奖励
+            }
+        }
+        
+        // Check space around Cao Cao
+        for (int dr = -1; dr <= 2; dr++) {
+            for (int dc = -1; dc <= 2; dc++) {
+                int r = caoCaoRow + dr;
+                int c = caoCaoCol + dc;
+                if (r >= 0 && r < board.length && c >= 0 && c < board[0].length) {
+                    if (board[r][c] == 0) {
+                        score += 2;  // 降低周围空单元格奖励
+                    }
+                }
+            }
+        }
+        
+        return -score;  // Negative because lower is better
+    }
+    
+    /**
+     * Calculate path score
+     */
+    private int calculatePathScore(int[][] board, int caoCaoRow, int caoCaoCol) {
+        int score = 0;
+        
+        // Check vertical path
+        boolean hasClearPath = true;
+        for (int r = caoCaoRow + 2; r <= goalRow; r++) {
+            if (r < board.length) {
+                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
+                    if (board[r][c] != 0) {
+                        hasClearPath = false;
+                        if (board[r][c] == MapModel.SOLDIER) {
+                            score += 30;  // High penalty for soldier blocks
+                        } else {
+                            score += 15;  // Normal penalty for other blocks
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (hasClearPath) {
+            score -= 50;  // Large bonus for clear path
+        }
+        
+        // Check if pieces can be moved to clear the path
+        for (int r = caoCaoRow + 2; r <= goalRow; r++) {
+            if (r < board.length) {
+                for (int c = 0; c < board[0].length; c++) {
+                    if (board[r][c] != 0 && board[r][c] != MapModel.CAO_CAO) {
+                        // Check if piece can be moved
+                        boolean canMove = false;
+                        for (Direction dir : Direction.values()) {
+                            if (controller.canMove(r, c, 1, 1, dir)) {
+                                canMove = true;
+                    break;
+                }
+            }
+                        if (canMove) {
+                            score -= 10;  // Bonus for movable pieces
+                        }
+                    }
+                }
+            }
+        }
+        
+        return score;
+    }
+    
+    /**
+     * Calculate pattern score
+     */
+    private int calculatePatternScore(int[][] board, int caoCaoRow, int caoCaoCol) {
+        int score = 0;
+        
+        // Bonus for having clear space below
+        if (caoCaoRow + 2 < board.length) {
+            boolean clearBelow = true;
+            for (int c = 0; c < board[0].length; c++) {
+                if (board[caoCaoRow + 2][c] != 0) {
+                    clearBelow = false;
+                    break;
+                }
+            }
+            if (clearBelow) score -= 20;
+        }
+        
+        // Bonus for having clear space to sides
+        int centerCol = (board[0].length - 2) / 2;
+        if (caoCaoCol != centerCol) {
+            boolean clearSide = true;
+            int sideCol = caoCaoCol + (caoCaoCol < centerCol ? 2 : -1);
+            if (sideCol >= 0 && sideCol < board[0].length) {
+                for (int r = caoCaoRow; r <= caoCaoRow + 1; r++) {
+                    if (board[r][sideCol] != 0) {
+                        clearSide = false;
+                    break;
+                }
+            }
+                if (clearSide) score -= 15;
+            }
+        }
+        
+        // Penalty for having pieces blocking the path
+        for (int r = caoCaoRow + 2; r <= goalRow; r++) {
+            if (r < board.length) {
+                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
+                    if (board[r][c] != 0) {
+                        score += (board[r][c] == MapModel.SOLDIER) ? 25 : 10;
+                    }
+                }
+            }
+        }
+        
+        return score;
+    }
+    
+    /**
+     * Find Cao Cao's position in the board
+     */
+    private int[] findCaoCaoPosition(int[][] board) {
         for (int r = 0; r < board.length - 1; r++) {
             for (int c = 0; c < board[0].length - 1; c++) {
-                if (board[r][c] == MapModel.CAO_CAO && 
-                    board[r][c+1] == MapModel.CAO_CAO && 
-                    board[r+1][c] == MapModel.CAO_CAO && 
+                if (board[r][c] == MapModel.CAO_CAO &&
+                    board[r][c+1] == MapModel.CAO_CAO &&
+                    board[r+1][c] == MapModel.CAO_CAO &&
                     board[r+1][c+1] == MapModel.CAO_CAO) {
-                    
-                    // Check if Cao Cao's bottom edge is at the goal position
-                    return r + 1 == goalRow && c == goalCol;
+                    return new int[]{r, c};
                 }
             }
         }
+        return null;
+    }
+    
+    /**
+     * Check if Cao Cao can move toward the goal
+     */
+    private boolean canMoveTowardGoal(int[][] board, int caoCaoRow, int caoCaoCol) {
+        if (caoCaoRow >= goalRow) return true;
         
+        // Check if can move down
+        if (caoCaoRow + 2 < board.length) {
+            return board[caoCaoRow + 2][caoCaoCol] == 0 && 
+                   board[caoCaoRow + 2][caoCaoCol + 1] == 0;
+        }
         return false;
     }
     
     /**
-     * Generate a string representation of a board state for use in hashsets
+     * Generate next states from current state
      */
-    private String boardToString(int[][] board) {
-        StringBuilder sb = new StringBuilder();
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                sb.append(board[r][c]).append(",");
-            }
-        }
-        return sb.toString();
-    }
-    
-    /**
-     * Generate all possible next states from the current state
-     */
-    private List<State> generateNextStates(State current) {
+    private List<State> generateNextStates(State current, boolean isForward) {
         List<State> nextStates = new ArrayList<>();
         int[][] board = current.board;
         
-        // Track which piece types we've already processed
+        // Track which piece types we've tried
         Set<Integer> processedPieces = new HashSet<>();
         
-        // For each position on the board
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                int pieceType = board[r][c];
-                
-                // Skip empty cells, blocked cells, and already processed pieces
-                if (pieceType == 0 || pieceType == MapModel.BLOCKED || 
-                    processedPieces.contains(pieceType)) {
-                    continue;
+        // First try to move Cao Cao
+        int[] caoCaoPos = findCaoCaoPosition(board);
+        if (caoCaoPos != null) {
+            processedPieces.add(MapModel.CAO_CAO);
+            int caoCaoRow = caoCaoPos[0];
+            int caoCaoCol = caoCaoPos[1];
+            
+            // Prioritize downward movement
+            Direction[] directions = {Direction.DOWN, Direction.LEFT, Direction.RIGHT, Direction.UP};
+            
+            for (Direction dir : directions) {
+                if (controller.canMove(caoCaoRow, caoCaoCol, 2, 2, dir)) {
+                    int[][] newBoard = deepCopyBoard(board);
+                    // Clear original position
+                    for (int i = 0; i < 2; i++) {
+                        for (int j = 0; j < 2; j++) {
+                            newBoard[caoCaoRow + i][caoCaoCol + j] = 0;
+                        }
+                    }
+                    
+                    // Calculate new position
+                    int dr = 0, dc = 0;
+                    switch (dir) {
+                        case UP: dr = -1; break;
+                        case DOWN: dr = 1; break;
+                        case LEFT: dc = -1; break;
+                        case RIGHT: dc = 1; break;
+                    }
+                    
+                    // Place in new position
+                    for (int i = 0; i < 2; i++) {
+                        for (int j = 0; j < 2; j++) {
+                            int newRow = caoCaoRow + i + dr;
+                            int newCol = caoCaoCol + j + dc;
+                            if (newRow >= 0 && newRow < board.length && 
+                                newCol >= 0 && newCol < board[0].length) {
+                                newBoard[newRow][newCol] = MapModel.CAO_CAO;
+                            }
+                        }
+                    }
+                    
+                    Move move = new Move(caoCaoRow, caoCaoCol, dir, MapModel.CAO_CAO, controller);
+                    List<Move> newMoves = new ArrayList<>(current.moves);
+                    newMoves.add(move);
+                    
+                    int heuristic = calculateHeuristic(newBoard);
+                    State newState = new State(newBoard, newMoves, heuristic, current.depth + 1);
+                    nextStates.add(newState);
                 }
+            }
+        }
+        
+        // Then try other pieces
+            for (int r = 0; r < board.length; r++) {
+                for (int c = 0; c < board[0].length; c++) {
+                int pieceType = board[r][c];
+                if (pieceType == 0 || pieceType == MapModel.CAO_CAO || processedPieces.contains(pieceType)) continue;
                 
-                // Mark this piece as processed
                 processedPieces.add(pieceType);
                 
                 // Determine piece dimensions based on type
@@ -921,57 +611,54 @@ public class AISolver {
                     height = 1;
                 }
                 
-                // Try moving in each direction
-                for (Direction dir : Direction.values()) {
-                    if (canMove(board, r, c, width, height, dir)) {
-                        // Create a new board with the move applied
-                        int[][] newBoard = deepCopyBoard(board);
-                        
-                        // Create the move
-                        Move move = new Move(r, c, dir);
-                        
-                        // Apply the move to the new board
-                        int dr = 0, dc = 0;
-                        
-                        switch (dir) {
-                            case UP:
-                                dr = -1;
-                                break;
-                            case DOWN:
-                                dr = 1;
-                                break;
-                            case LEFT:
-                                dc = -1;
-                                break;
-                            case RIGHT:
-                                dc = 1;
-                                break;
-                        }
-                        
-                        // Clear the original piece position
-                        for (int i = 0; i < height; i++) {
-                            for (int j = 0; j < width; j++) {
-                                newBoard[r + i][c + j] = 0;
+                // Check if this is a valid piece position (not part of a larger piece)
+                boolean isValidPosition = true;
+                if (r > 0 && board[r-1][c] == pieceType) isValidPosition = false;
+                if (c > 0 && board[r][c-1] == pieceType) isValidPosition = false;
+                
+                if (isValidPosition) {
+                    // Prioritize movements that help Cao Cao
+                    Direction[] directions = getPrioritizedDirections(r, c, caoCaoPos);
+                    
+                    for (Direction dir : directions) {
+                        if (controller.canMove(r, c, width, height, dir)) {
+                            int[][] newBoard = deepCopyBoard(board);
+                            // Clear original position
+                            for (int i = 0; i < height; i++) {
+                                for (int j = 0; j < width; j++) {
+                                    newBoard[r + i][c + j] = 0;
+                                }
                             }
-                        }
-                        
-                        // Place the piece in the new position
-                        for (int i = 0; i < height; i++) {
-                            for (int j = 0; j < width; j++) {
-                                newBoard[r + i + dr][c + j + dc] = pieceType;
+                            
+                            // Calculate new position
+                            int dr = 0, dc = 0;
+                            switch (dir) {
+                                case UP: dr = -1; break;
+                                case DOWN: dr = 1; break;
+                                case LEFT: dc = -1; break;
+                                case RIGHT: dc = 1; break;
                             }
+                            
+                            // Place in new position
+                            for (int i = 0; i < height; i++) {
+                                for (int j = 0; j < width; j++) {
+                                    int newRow = r + i + dr;
+                                    int newCol = c + j + dc;
+                                    if (newRow >= 0 && newRow < board.length && 
+                                        newCol >= 0 && newCol < board[0].length) {
+                                        newBoard[newRow][newCol] = pieceType;
+                                    }
+                                }
+                            }
+                            
+                            Move move = new Move(r, c, dir, pieceType, controller);
+                            List<Move> newMoves = new ArrayList<>(current.moves);
+                            newMoves.add(move);
+                            
+                            int heuristic = calculateHeuristic(newBoard);
+                            State newState = new State(newBoard, newMoves, heuristic, current.depth + 1);
+                            nextStates.add(newState);
                         }
-                        
-                        // Create a new list of moves
-                        List<Move> newMoves = new ArrayList<>(current.moves);
-                        newMoves.add(move);
-                        
-                        // Create a new state
-                        int newHeuristic = calculateHeuristic(newBoard);
-                        State newState = new State(newBoard, newMoves, newHeuristic);
-                        
-                        // Add to next states
-                        nextStates.add(newState);
                     }
                 }
             }
@@ -981,19 +668,119 @@ public class AISolver {
     }
     
     /**
-     * Check if the board in the queue already contains the given board
+     * Get prioritized directions based on piece position relative to Cao Cao
      */
-    private boolean containsBoard(PriorityQueue<State> queue, int[][] board) {
-        for (State state : queue) {
-            if (Arrays.deepEquals(state.board, board)) {
-                return true;
-            }
+    private Direction[] getPrioritizedDirections(int row, int col, int[] caoCaoPos) {
+        if (caoCaoPos == null) {
+            return Direction.values();
         }
-        return false;
+        
+        int caoCaoRow = caoCaoPos[0];
+        int caoCaoCol = caoCaoPos[1];
+        
+        // If piece is above Cao Cao, prioritize moving down
+        if (row < caoCaoRow) {
+            return new Direction[]{Direction.DOWN, Direction.LEFT, Direction.RIGHT, Direction.UP};
+        }
+        // If piece is below Cao Cao, prioritize moving up
+        else if (row > caoCaoRow) {
+            return new Direction[]{Direction.UP, Direction.LEFT, Direction.RIGHT, Direction.DOWN};
+        }
+        // If piece is to the left of Cao Cao, prioritize moving right
+        else if (col < caoCaoCol) {
+            return new Direction[]{Direction.RIGHT, Direction.UP, Direction.DOWN, Direction.LEFT};
+        }
+        // If piece is to the right of Cao Cao, prioritize moving left
+        else if (col > caoCaoCol) {
+            return new Direction[]{Direction.LEFT, Direction.UP, Direction.DOWN, Direction.RIGHT};
+        }
+        
+        return Direction.values();
     }
     
     /**
-     * Deep copy a board state
+     * Get piece name for debugging
+     */
+    private String getPieceName(int type) {
+        switch (type) {
+            case MapModel.CAO_CAO: return "Cao Cao";
+            case MapModel.GUAN_YU: return "Guan Yu";
+            case MapModel.GENERAL: return "General";
+            case MapModel.SOLDIER: return "Soldier";
+            default: return "Unknown";
+        }
+    }
+    
+    /**
+     * Apply a move to the board
+     */
+    private int[][] applyMove(int[][] board, int row, int col, int width, int height, 
+                            Direction dir, int pieceType) {
+        // First verify the piece exists at the specified position
+        boolean pieceExists = true;
+        for (int i = 0; i < height && pieceExists; i++) {
+            for (int j = 0; j < width && pieceExists; j++) {
+                if (row + i >= board.length || col + j >= board[0].length ||
+                    board[row + i][col + j] != pieceType) {
+                    pieceExists = false;
+                }
+            }
+        }
+        
+        if (!pieceExists) {
+            System.out.println("Error: Piece not found at specified position");
+            return board;
+        }
+        
+        // Calculate movement direction (only one step)
+        int dr = 0, dc = 0;
+        switch (dir) {
+            case UP: dr = -1; break;
+            case DOWN: dr = 1; break;
+            case LEFT: dc = -1; break;
+            case RIGHT: dc = 1; break;
+        }
+        
+        // Create new board
+        int[][] newBoard = deepCopyBoard(board);
+        
+        // Clear original position
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
+                if (row + i < board.length && col + j < board[0].length) {
+                    newBoard[row + i][col + j] = 0;
+                }
+            }
+        }
+        
+        // Place in new position (only one step)
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
+                int newRow = row + i + dr;
+                int newCol = col + j + dc;
+                if (newRow >= 0 && newRow < board.length && 
+                    newCol >= 0 && newCol < board[0].length) {
+                    newBoard[newRow][newCol] = pieceType;
+                }
+            }
+        }
+        
+        // Print debug information
+        System.out.println("\nApplying move:");
+        System.out.println("Piece type: " + getPieceName(pieceType));
+        System.out.println("From position: [" + row + "," + col + "]");
+        System.out.println("Direction: " + dir);
+        System.out.println("Dimensions: " + width + "x" + height);
+        System.out.println("Original board:");
+        printBoardState(board);
+        System.out.println("Resulting board:");
+        printBoardState(newBoard);
+        
+        return newBoard;
+    }
+    
+    /**
+     * Deep copy a board
      */
     private int[][] deepCopyBoard(int[][] board) {
         int[][] copy = new int[board.length][board[0].length];
@@ -1004,109 +791,150 @@ public class AISolver {
     }
     
     /**
-     * Check if a piece can move in the given direction
+     * Convert board to string for hashing
      */
-    private boolean canMove(int[][] board, int row, int col, int width, int height, Direction dir) {
-        int dr = 0, dc = 0;
-        int pieceType = board[row][col];
-        boolean isSoldier = (pieceType == MapModel.SOLDIER);
-        
-        switch (dir) {
-            case UP:
-                dr = -1;
-                if (row <= 0) return false; // Already at top edge
-                
-                // Check all cells above the piece
-                for (int j = 0; j < width; j++) {
-                    if (col + j >= board[0].length) continue;
-                    
-                    int targetCell = board[row + dr][col + j];
-                    
-                    // Check if cell is occupied
-                    if (targetCell != 0) {
-                        return false; // Blocked by another piece
-                    }
-                    
-                    // Special rule: Soldiers cannot move onto military camps
-                    if (isSoldier && targetCell == MapModel.MILITARY_CAMP) {
-                        return false;
-                    }
-                }
-                break;
-                
-            case DOWN:
-                dr = 1;
-                if (row + height >= board.length) return false; // Already at bottom edge
-                
-                // Check all cells below the piece
-                for (int j = 0; j < width; j++) {
-                    if (col + j >= board[0].length) continue;
-                    
-                    int targetCell = board[row + height + dr - 1][col + j];
-                    
-                    // Check if cell is occupied
-                    if (targetCell != 0) {
-                        return false; // Blocked by another piece
-                    }
-                    
-                    // Special rule: Soldiers cannot move onto military camps
-                    if (isSoldier && targetCell == MapModel.MILITARY_CAMP) {
-                        return false;
-                    }
-                }
-                break;
-                
-            case LEFT:
-                dc = -1;
-                if (col <= 0) return false; // Already at left edge
-                
-                // Check all cells to the left of the piece
-                for (int i = 0; i < height; i++) {
-                    if (row + i >= board.length) continue;
-                    
-                    int targetCell = board[row + i][col + dc];
-                    
-                    // Check if cell is occupied
-                    if (targetCell != 0) {
-                        return false; // Blocked by another piece
-                    }
-                    
-                    // Special rule: Soldiers cannot move onto military camps
-                    if (isSoldier && targetCell == MapModel.MILITARY_CAMP) {
-                        return false;
-                    }
-                }
-                break;
-                
-            case RIGHT:
-                dc = 1;
-                if (col + width >= board[0].length) return false; // Already at right edge
-                
-                // Check all cells to the right of the piece
-                for (int i = 0; i < height; i++) {
-                    if (row + i >= board.length) continue;
-                    
-                    int targetCell = board[row + i][col + width + dc - 1];
-                    
-                    // Check if cell is occupied
-                    if (targetCell != 0) {
-                        return false; // Blocked by another piece
-                    }
-                    
-                    // Special rule: Soldiers cannot move onto military camps
-                    if (isSoldier && targetCell == MapModel.MILITARY_CAMP) {
-                        return false;
-                    }
-                }
-                break;
+    private String boardToString(int[][] board) {
+        StringBuilder sb = new StringBuilder();
+        for (int[] row : board) {
+            for (int cell : row) {
+                sb.append(cell).append(",");
+            }
         }
-        
-        return true;
+        return sb.toString();
     }
     
     /**
+     * Print board state for debugging
+     */
+    private void printBoardState(int[][] board) {
+        System.out.println("Board State:");
+        for (int[] row : board) {
+            for (int cell : row) {
+                System.out.print(String.format("%2d ", cell));
+            }
+            System.out.println();
+        }
+        System.out.println();
+    }
+    
+    /**
+     * Show message dialog
+     */
+    private void showMessage(String title, String message) {
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(null, message, title, 
+                JOptionPane.INFORMATION_MESSAGE);
+        });
+    }
+    
+    /**
+     * Start loading animation
+     */
+    private void startLoadingAnimation() {
+        if (animationTimer != null) {
+            animationTimer.stop();
+        }
+        
+        animationFrame = 0;
+        animationTimer = new Timer(150, e -> {
+            animationFrame = (animationFrame + 1) % LOADING_FRAMES.length;
+            updateAnimationText(LOADING_FRAMES[animationFrame]);
+        });
+        
+        animationTimer.start();
+    }
+    
+    /**
+     * Stop loading animation
+     */
+    private void stopLoadingAnimation() {
+        if (animationTimer != null) {
+            animationTimer.stop();
+            animationTimer = null;
+        }
+        
+        if (controller != null) {
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                try {
+                    JOptionPane.getRootFrame().setTitle("AI Solver");
+                } catch (Exception e) {
+                    // Ignore if no dialog is showing
+                }
+            });
+        }
+    }
+    
+    /**
+     * Update animation text
+     */
+    private void updateAnimationText(String text) {
+        if (controller != null) {
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                try {
+                    JOptionPane.getRootFrame().setTitle("AI Solver: " + text);
+                } catch (Exception e) {
+                    // Ignore if no dialog is showing
+                }
+            });
+        }
+    }
+    
+    /**
+     * Execute the solution
+     */
+    public void executeSolution() {
+        if (solution.isEmpty() || isSolving) return;
+        
+        isSolving = true;
+        final int[] moveIndex = {0};
+        final long[] lastMoveTime = {System.currentTimeMillis()};
+        
+        Timer timer = new Timer(1000, e -> {
+            if (System.currentTimeMillis() - lastMoveTime[0] < 800) return;
+            
+            if (moveIndex[0] >= solution.size()) {
+                ((Timer)e.getSource()).stop();
+                isSolving = false;
+                showMessage("Solution Complete", 
+                    "The AI has successfully solved the puzzle in " + solution.size() + " moves.");
+                return;
+            }
+            
+            Move move = solution.get(moveIndex[0]);
+            BoxComponent selectedBox = controller.selectBoxAt(move.row, move.col);
+            
+            if (selectedBox != null) {
+                boolean moveSuccess = controller.doMove(move.row, move.col, move.direction);
+                if (moveSuccess) {
+                    lastMoveTime[0] = System.currentTimeMillis();
+                    moveIndex[0]++;
+                } else {
+                    moveIndex[0]++;
+                }
+            } else {
+                moveIndex[0]++;
+            }
+        });
+        
+        timer.start();
+    }
+    
+    /**
+     * Get solution length
+     */
+    public int getSolutionLength() {
+        return solution.size();
+    }
+    
+    /**
+     * Get solution moves
+     */
+    public List<Move> getSolutionMoves(int count) {
+        return solution.subList(0, Math.min(count, solution.size()));
+    }
+
+    /**
      * Optimize the solution by removing unnecessary moves
-     * This is an important step to ensure the AI doesn't make redundant moves
      */
     private void optimizeSolution() {
         if (solution.size() <= 1) return;
@@ -1118,42 +946,30 @@ public class AISolver {
         // For each move in the solution
         for (Move move : solution) {
             // Get the piece type and dimensions
-            int pieceType = board[move.row][move.col];
+            int pieceType = move.pieceType;
             int width = 1, height = 1;
             
-            if (pieceType == MapModel.CAO_CAO) { // 2x2 block
-                width = 2;
+            if (pieceType == MapModel.CAO_CAO) {
+                            width = 2;
                 height = 2;
-            } else if (pieceType == MapModel.GUAN_YU) { // 2x1 block
+            } else if (pieceType == MapModel.GUAN_YU) {
                 width = 2;
                 height = 1;
-            } else if (pieceType == MapModel.GENERAL) { // 1x2 block
+                        } else if (pieceType == MapModel.GENERAL) {
                 width = 1;
-                height = 2;
-            } else if (pieceType == MapModel.ZHOU_YU) { // 1x3 block
-                width = 3;
-                height = 1;
+                            height = 2;
             }
             
             // Apply the move to the board
             int dr = 0, dc = 0;
-            
             switch (move.direction) {
-                case UP:
-                    dr = -1;
-                    break;
-                case DOWN:
-                    dr = 1;
-                    break;
-                case LEFT:
-                    dc = -1;
-                    break;
-                case RIGHT:
-                    dc = 1;
-                    break;
+                case UP: dr = -1; break;
+                case DOWN: dr = 1; break;
+                case LEFT: dc = -1; break;
+                case RIGHT: dc = 1; break;
             }
             
-            // Clear the original piece position
+            // Clear original position
             for (int i = 0; i < height; i++) {
                 for (int j = 0; j < width; j++) {
                     if (move.row + i < board.length && move.col + j < board[0].length) {
@@ -1162,7 +978,7 @@ public class AISolver {
                 }
             }
             
-            // Place the piece in the new position
+            // Place in new position
             for (int i = 0; i < height; i++) {
                 for (int j = 0; j < width; j++) {
                     if (move.row + i + dr < board.length && 
@@ -1177,118 +993,179 @@ public class AISolver {
             // Add the move to the optimized solution
             optimizedSolution.add(move);
             
+            // Print debug information
+            System.out.println("\nAfter move " + move + ":");
+            printBoardState(board);
+            
             // If this is the goal state, stop
             if (isGoalState(board)) {
+                System.out.println("Goal state reached!");
                 break;
             }
         }
         
-        solution = optimizedSolution;
-        System.out.println("AI Solver: Optimized solution from " + solution.size() + 
+        // Only update solution if we found a valid path to goal
+        if (isGoalState(board)) {
+            solution = optimizedSolution;
+            System.out.println("AI Solver: Optimized solution from " + solution.size() + 
                           " moves to " + optimizedSolution.size() + " moves");
+        } else {
+            System.out.println("AI Solver: Could not optimize solution - no valid path to goal found");
+        }
     }
     
     /**
-     * Verify the solution by replaying the moves on a fresh board
+     * Check if the given state is the goal state
      */
-    private boolean verifySolution(int[][] initialBoard) {
-        // Create a copy of the initial board
-        int[][] board = deepCopyBoard(initialBoard);
+    private boolean isGoalState(int[][] board) {
+        int[] caoCaoPos = findCaoCaoPosition(board);
+        if (caoCaoPos == null) return false;
         
-        // For each move in the solution
-        for (Move move : solution) {
-            // Get the piece type at the specified position
-            int pieceType;
-            try {
-                pieceType = board[move.row][move.col];
-            } catch (ArrayIndexOutOfBoundsException e) {
-                System.out.println("AI Solver: Invalid move coordinates in solution: [" + 
-                                  move.row + "," + move.col + "]");
-                return false;
-            }
-            
-            if (pieceType == 0) {
-                System.out.println("AI Solver: Invalid move in solution - empty cell at [" + 
-                                  move.row + "," + move.col + "]");
-                return false;
-            }
-            
-            // Determine piece dimensions
-            int width = 1, height = 1;
-            
-            if (pieceType == MapModel.CAO_CAO) { // 2x2 block
-                width = 2;
-                height = 2;
-            } else if (pieceType == MapModel.GUAN_YU) { // 2x1 block
-                width = 2;
-                height = 1;
-            } else if (pieceType == MapModel.GENERAL) { // 1x2 block
-                width = 1;
-                height = 2;
-            } else if (pieceType == MapModel.ZHOU_YU) { // 1x3 block
-                width = 3;
-                height = 1;
-            }
-            
-            // Check if the move is valid
-            if (!canMove(board, move.row, move.col, width, height, move.direction)) {
-                System.out.println("AI Solver: Invalid move in solution - can't move piece at [" + 
-                                  move.row + "," + move.col + "] " + move.direction);
-                return false;
-            }
-            
-            // Apply the move
-            int dr = 0, dc = 0;
-            
-            switch (move.direction) {
-                case UP:
-                    dr = -1;
-                    break;
-                case DOWN:
-                    dr = 1;
-                    break;
-                case LEFT:
-                    dc = -1;
-                    break;
-                case RIGHT:
-                    dc = 1;
-                    break;
-            }
-            
-            // Clear the original piece position
-            for (int i = 0; i < height; i++) {
-                for (int j = 0; j < width; j++) {
-                    board[move.row + i][move.col + j] = 0;
-                }
-            }
-            
-            // Place the piece in the new position
-            for (int i = 0; i < height; i++) {
-                for (int j = 0; j < width; j++) {
-                    board[move.row + i + dr][move.col + j + dc] = pieceType;
+        // Check if Cao Cao is at the bottom center position
+        int boardHeight = board.length;
+        int boardWidth = board[0].length;
+        int expectedRow = boardHeight - 2;  // Bottom row - 2 (since Cao Cao is 2x2)
+        int expectedCol = (boardWidth - 2) / 2;  // Center column
+        
+        // Verify Cao Cao's position and dimensions
+        return caoCaoPos[0] == expectedRow && 
+               caoCaoPos[1] == expectedCol &&
+               board[expectedRow][expectedCol] == MapModel.CAO_CAO &&
+               board[expectedRow][expectedCol + 1] == MapModel.CAO_CAO &&
+               board[expectedRow + 1][expectedCol] == MapModel.CAO_CAO &&
+               board[expectedRow + 1][expectedCol + 1] == MapModel.CAO_CAO;
+    }
+    
+    /**
+     * Count blocking pieces between Cao Cao and goal
+     */
+    private int countBlockingPieces(int[][] board, int caoCaoRow, int caoCaoCol) {
+        int blockingPieces = 0;
+        
+        // Check vertical path
+        for (int r = caoCaoRow + 2; r <= goalRow + 1; r++) {
+            if (r < board.length) {
+                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
+                    if (board[r][c] != 0 && board[r][c] != MapModel.CAO_CAO) {
+                        blockingPieces++;
+                    }
                 }
             }
         }
         
-        // Check if the final state is the goal state
-        return isGoalState(board);
+        // Check horizontal path if needed
+        int horizontalDir = Integer.compare(goalCol, caoCaoCol);
+        if (horizontalDir != 0) {
+            int startCol = caoCaoCol + (horizontalDir > 0 ? 2 : -1);
+            int endCol = goalCol + (horizontalDir > 0 ? 1 : 0);
+            
+            for (int c = startCol; horizontalDir > 0 ? c <= endCol : c >= endCol; c += horizontalDir) {
+                if (c >= 0 && c < board[0].length && goalRow < board.length && goalRow + 1 < board.length) {
+                    for (int r = goalRow; r <= goalRow + 1; r++) {
+                        if (board[r][c] != 0) {
+                            blockingPieces++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return blockingPieces;
     }
     
     /**
-     * Get the length of the current solution
+     * Calculate path complexity
      */
-    public int getSolutionLength() {
-        return solution.size();
+    private int calculatePathComplexity(int[][] board, int caoCaoRow, int caoCaoCol) {
+        int complexity = 0;
+        Set<Integer> blockingPieces = new HashSet<>();
+        
+        // Find pieces in vertical path
+        for (int r = caoCaoRow + 2; r <= goalRow + 1; r++) {
+            if (r < board.length) {
+                for (int c = caoCaoCol; c <= caoCaoCol + 1; c++) {
+                    if (board[r][c] != 0 && board[r][c] != MapModel.CAO_CAO) {
+                        blockingPieces.add(board[r][c]);
+                    }
+                }
+            }
+        }
+        
+        // Find pieces in horizontal path if needed
+        int horizontalDir = Integer.compare(goalCol, caoCaoCol);
+        if (horizontalDir != 0) {
+            int startCol = caoCaoCol + (horizontalDir > 0 ? 2 : -1);
+            int endCol = goalCol + (horizontalDir > 0 ? 1 : 0);
+            
+            for (int c = startCol; horizontalDir > 0 ? c <= endCol : c >= endCol; c += horizontalDir) {
+                if (c >= 0 && c < board[0].length && goalRow < board.length && goalRow + 1 < board.length) {
+                    for (int r = goalRow; r <= goalRow + 1; r++) {
+                        if (board[r][c] != 0) {
+                            blockingPieces.add(board[r][c]);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Evaluate each blocking piece
+        for (Integer pieceType : blockingPieces) {
+            // Find piece position
+            int pieceRow = -1;
+            int pieceCol = -1;
+            int width = 1;
+            int height = 1;
+            
+            outerLoop:
+            for (int r = 0; r < board.length; r++) {
+                for (int c = 0; c < board[0].length; c++) {
+                    if (board[r][c] == pieceType) {
+                        pieceRow = r;
+                        pieceCol = c;
+                        
+                        // Determine piece dimensions
+                        if (pieceType == MapModel.GUAN_YU) {
+                            width = 2;
+                        } else if (pieceType == MapModel.GENERAL) {
+                            height = 2;
+                        }
+                        
+                        break outerLoop;
+                    }
+                }
+            }
+            
+            if (pieceRow < 0) continue;
+            
+            // Check how many directions the piece can move
+            int movableDirections = 0;
+        for (Direction dir : Direction.values()) {
+                if (controller.canMove(pieceRow, pieceCol, width, height, dir)) {
+                    movableDirections++;
+                }
+            }
+            
+            // Add complexity based on piece mobility
+            if (movableDirections == 0) {
+                complexity += 15; // Completely blocked
+            } else if (movableDirections == 1) {
+                complexity += 8;  // Limited movement
+            } else {
+                complexity += 3;  // More freedom
+            }
+        }
+        
+        return complexity;
     }
     
     /**
-     * Get a specific number of moves from the solution
-     * 
-     * @param count The number of moves to get
-     * @return A list of moves from the solution
+     * Check if a piece can move in the given direction
      */
-    public List<Move> getSolutionMoves(int count) {
-        int movesToReturn = Math.min(count, solution.size());
-        return solution.subList(0, movesToReturn);
+    private boolean canMove(int[][] board, int row, int col, int width, int height, Direction dir) {
+        return controller.canMove(row, col, width, height, dir);
+    }
+
+    private void movePiece(int row, int col, int direction) {
+        controller.doMove(row, col, Direction.values()[direction]);
     }
 }

@@ -3,19 +3,19 @@ package model;
 public enum Direction {
     LEFT(0, -1), UP(-1, 0), RIGHT(0, 1), DOWN(1, 0),
     ;
-    private final int row;
-    private final int col;
+    private final int rowOffset;
+    private final int colOffset;
 
-    Direction(int row, int col) {
-        this.row = row;
-        this.col = col;
+    Direction(int rowOffset, int colOffset) {
+        this.rowOffset = rowOffset;
+        this.colOffset = colOffset;
     }
 
-    public int getRow() {
-        return row;
+    public int getRowOffset() {
+        return rowOffset;
     }
 
-    public int getCol() {
-        return col;
+    public int getColOffset() {
+        return colOffset;
     }
 }

@@ -670,4 +670,38 @@ public class GamePanel extends ListenerPanel {
         this.obstacleSelectionMode = active;
         this.setCursor(active ? Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR) : Cursor.getDefaultCursor());
     }
+
+    private void updateBoxPositions() {
+        int width = getWidth();
+        int height = getHeight();
+        
+        // Calculate grid size
+        int gridWidth = width / model.getWidth();
+        int gridHeight = height / model.getHeight();
+        GRID_SIZE = Math.min(gridWidth, gridHeight);
+        
+        // Standardize grid size to be a multiple of 10
+        GRID_SIZE = (GRID_SIZE / 10) * 10;
+        
+        // Ensure minimum grid size
+        if (GRID_SIZE < 50) {
+            GRID_SIZE = 50;
+        }
+        
+        // Calculate starting position to center the board
+        int startX = (width - (model.getWidth() * GRID_SIZE)) / 2;
+        int startY = (height - (model.getHeight() * GRID_SIZE)) / 2;
+        
+        // Update box positions
+        for (int i = 0; i < model.getHeight(); i++) {
+            for (int j = 0; j < model.getWidth(); j++) {
+                BoxComponent box = boxes.get(i * model.getWidth() + j);
+                if (box != null) {
+                    int x = startX + j * GRID_SIZE;
+                    int y = startY + i * GRID_SIZE;
+                    box.setBounds(x, y, GRID_SIZE, GRID_SIZE);
+                }
+            }
+        }
+    }
 }
