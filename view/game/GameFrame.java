@@ -163,31 +163,88 @@ public class GameFrame extends JFrame {
 
         gamePanel.setStepLabel(stepLabel);
 
+        // AI Solve按钮（蓝色系）
         JButton aiButton = new JButton("AI Solve");
         aiButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        setButtonStyle(aiButton, new Color(52, 152, 219), new Color(41, 128, 185)); // 蓝
+        setButtonStyle(aiButton, new Color(232, 189, 189), new Color(156, 206, 211));
         controlPanel.add(aiButton);
         controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
 
+        // 按钮十字
+        JPanel directionPanel = new JPanel(new GridLayout(3, 3, 5, 5));
+        directionPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        directionPanel.setOpaque(false);
+        directionPanel.setPreferredSize(new Dimension(150, 150));
+
+        Dimension btnSize = new Dimension(45, 45); // 按钮
+
+// 上
+        JButton upBtn = new JButton("↑");
+        upBtn.addActionListener(e -> {
+            gamePanel.doMoveUp();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(upBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        upBtn.setPreferredSize(btnSize);
+        directionPanel.add(Box.createGlue()); // (0,0) 空白占位
+        directionPanel.add(upBtn);          // (0,1) 上按钮
+        directionPanel.add(Box.createGlue()); // (0,2) 空白占位
+
+// 左、右
+        JButton leftBtn = new JButton("←");
+        leftBtn.addActionListener(e -> {
+            gamePanel.doMoveLeft();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(leftBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        leftBtn.setPreferredSize(btnSize);
+        directionPanel.add(leftBtn);        // (1,0) 左按钮
+        directionPanel.add(Box.createGlue()); // (1,1) 中间空白
+        JButton rightBtn = new JButton("→");
+        rightBtn.addActionListener(e -> {
+            gamePanel.doMoveRight();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(rightBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        rightBtn.setPreferredSize(btnSize);
+        directionPanel.add(rightBtn);       // (1,2) 右按钮
+
+// 下
+        JButton downBtn = new JButton("↓");
+        downBtn.addActionListener(e -> {
+            gamePanel.doMoveDown();
+            gamePanel.requestFocusInWindow();
+        });
+        setButtonStyle(downBtn, new Color(232, 189, 189), new Color(156, 206, 211));
+        downBtn.setPreferredSize(btnSize);
+        directionPanel.add(Box.createGlue()); // (2,0) 空白占位
+        directionPanel.add(downBtn);         // (2,1) 下按钮
+        directionPanel.add(Box.createGlue()); // (2,2) 空白占位
+
+        controlPanel.add(directionPanel);
+        controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
+
+        // Restart按钮
         this.restartBtn = new JButton("Restart");
         restartBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        setButtonStyle(restartBtn, new Color(52, 152, 219), new Color(41, 128, 185));
+        setButtonStyle(restartBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         restartBtn.addActionListener(e -> {
             controller.restartGame();
             gamePanel.requestFocusInWindow();
         });
-
+        // Undo
         JButton undoBtn = new JButton("Undo");
         undoBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        setButtonStyle(undoBtn, new Color(52, 152, 219), new Color(41, 128, 185));
+        setButtonStyle(undoBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         undoBtn.addActionListener(e -> {
             controller.undoMove();
             gamePanel.requestFocusInWindow();
         });
 
+        // Load
         this.loadBtn = new JButton("Load");
         loadBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        setButtonStyle(loadBtn, new Color(52, 152, 219), new Color(41, 128, 185));
+        setButtonStyle(loadBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         loadBtn.addActionListener(e -> {
             if (guestMode) {
                 JOptionPane.showMessageDialog(this, "Guest users cannot load games");
@@ -197,9 +254,10 @@ public class GameFrame extends JFrame {
             }
         });
 
+        // Save
         JButton saveBtn = new JButton("Save");
         saveBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        setButtonStyle(saveBtn, new Color(52, 152, 219), new Color(41, 128, 185));
+        setButtonStyle(saveBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         saveBtn.addActionListener(e -> {
             if (guestMode) {
                 JOptionPane.showMessageDialog(this, "Guest users cannot save games");
@@ -209,9 +267,10 @@ public class GameFrame extends JFrame {
             }
         });
 
+        // 返回菜单
         JButton returnToMenuBtn = new JButton("Return to Menu");
         returnToMenuBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        setButtonStyle(returnToMenuBtn, new Color(46, 204, 113), new Color(39, 174, 96)); // 绿
+        setButtonStyle(returnToMenuBtn, new Color(156, 206, 211), new Color(232, 189, 189));
         returnToMenuBtn.addActionListener(e -> {
             returnToMenu();
         });
