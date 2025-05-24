@@ -168,7 +168,7 @@ public class GameFrame extends JFrame {
         aiButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         setButtonStyle(aiButton, new Color(232, 189, 189), new Color(156, 206, 211));
         aiButton.addActionListener(e -> {
-            // 创建带动画的"正在搜索"对话框
+            // 1. 创建带动画的"正在搜索"对话框
             JDialog searchingDialog = new JDialog(this, "AI正在搜索", true);
             searchingDialog.setUndecorated(true);
             JPanel panel = new JPanel(new BorderLayout());
@@ -176,15 +176,27 @@ public class GameFrame extends JFrame {
             label.setFont(new Font("微软雅黑", Font.BOLD, 18));
             label.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
             panel.add(label, BorderLayout.NORTH);
-            // 使用进度条动画
-            JProgressBar bar = new JProgressBar();
-            bar.setIndeterminate(true);
-            bar.setPreferredSize(new Dimension(250, 30));
-            panel.add(bar, BorderLayout.CENTER);
+
+            // 加载gif动画，如果找不到则用进度条
+            JLabel gifLabel;
+            java.net.URL gifUrl = getClass().getResource("/resource/loading.gif");
+            if (gifUrl != null) {
+                ImageIcon loadingIcon = new ImageIcon(gifUrl);
+                gifLabel = new JLabel(loadingIcon, SwingConstants.CENTER);
+            } else {
+                JProgressBar bar = new JProgressBar();
+                bar.setIndeterminate(true);
+                gifLabel = new JLabel();
+                gifLabel.setLayout(new BorderLayout());
+                gifLabel.add(bar, BorderLayout.CENTER);
+            }
+            panel.add(gifLabel, BorderLayout.CENTER);
+
             searchingDialog.getContentPane().add(panel);
-            searchingDialog.setSize(300, 120);
+            searchingDialog.setSize(300, 180);
             searchingDialog.setLocationRelativeTo(this);
 
+            // 2. 用SwingWorker后台执行AI搜索
             SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
                 AISolver solver = new AISolver(controller.getModel(), controller);
                 @Override
@@ -196,12 +208,16 @@ public class GameFrame extends JFrame {
                     searchingDialog.dispose();
                     try {
                         if (get()) {
+                            JOptionPane.showMessageDialog(GameFrame.this,
+                                "AI搜索成功，正在自动演示解法！",
+                                "AI Solver",
+                                JOptionPane.INFORMATION_MESSAGE);
                             solver.executeSolution();
                         } else {
                             JOptionPane.showMessageDialog(GameFrame.this,
-                                "No solution found for the current puzzle state.",
+                                "未找到当前局面的解法。",
                                 "AI Solver",
-                                JOptionPane.INFORMATION_MESSAGE);
+                                JOptionPane.WARNING_MESSAGE);
                         }
                     } catch (Exception ex) {
                         ex.printStackTrace();
