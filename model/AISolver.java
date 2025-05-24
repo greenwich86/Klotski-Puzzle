@@ -130,26 +130,19 @@ public class AISolver {
         int boardHeight = model.getHeight();
         int boardWidth = model.getWidth();
 
-        // 根据棋盘大小和难度级别计算目标位置
         if (boardHeight == 5 && boardWidth == 4) {
-            // 横刀立马布局
-            goalRow = 3;
+            goalRow = 4;
             goalCol = 1;
         } else if (boardHeight == 6 && boardWidth == 4) {
-            // 兵临城下布局
             goalRow = 4;
             goalCol = 1;
         } else if (boardHeight == 6 && boardWidth == 5) {
-            // 前呼后拥布局
             goalRow = 3;
             goalCol = 1;
         } else {
-            // 默认布局
             goalRow = boardHeight - 2;
             goalCol = (boardWidth - 2) / 2;
         }
-        
-        System.out.println("Calculated goal position: [" + goalRow + "," + goalCol + "]");
     }
 
     /**
@@ -423,26 +416,11 @@ public class AISolver {
 
                 // For generals, we need to try each one individually
                 if (pieceType == MapModel.GENERAL) {
-                    // Check if this is a general piece (1x2)
-                    boolean isGeneral = false;
-                    int generalHeight = 1;
-                    
-                    // Check below
+                    // Check if this is a general piece
                     if (row + 1 < board.length && board[row + 1][col] == MapModel.GENERAL) {
-                        isGeneral = true;
-                        generalHeight = 2;
-                    }
-                    // Check above
-                    else if (row > 0 && board[row - 1][col] == MapModel.GENERAL) {
-                        isGeneral = true;
-                        generalHeight = 2;
-                        row = row - 1; // Adjust row to top of piece
-                    }
-                    
-                    if (isGeneral) {
                         // Try moving in all directions
                         for (Direction direction : Direction.values()) {
-                            if (canMove(board, row, col, 1, generalHeight, direction)) {
+                            if (canMove(board, row, col, 1, 2, direction)) {
                                 // Create a new board for this move
                                 int[][] newBoard = deepCopyBoard(board);
                                 Move move = new Move(row, col, direction);
@@ -459,15 +437,11 @@ public class AISolver {
 
                                 // Clear old positions
                                 newBoard[row][col] = 0;
-                                if (generalHeight == 2) {
-                                    newBoard[row + 1][col] = 0;
-                                }
+                                newBoard[row+1][col] = 0;
 
                                 // Set new positions
                                 newBoard[newRow][newCol] = pieceType;
-                                if (generalHeight == 2) {
-                                    newBoard[newRow + 1][newCol] = pieceType;
-                                }
+                                newBoard[newRow+1][newCol] = pieceType;
 
                                 nextStates.add(new State(newBoard, current, current.g + 1,
                                         calculateHeuristic(newBoard),
@@ -479,24 +453,28 @@ public class AISolver {
                 }
 
                 // For other pieces, skip if this is not the top-left corner
-                int width = getPieceWidth(pieceType);
-                int height = getPieceHeight(pieceType);
-
-                // Verify this is the top-left corner of the piece
-                boolean isTopLeft = true;
-                for (int r = 0; r < height; r++) {
-                    for (int c = 0; c < width; c++) {
-                        if (r == 0 && c == 0) continue;
-                        if (row + r >= board.length || col + c >= board[0].length ||
-                            board[row + r][col + c] != pieceType) {
-                            isTopLeft = false;
-                            break;
-                        }
-                    }
-                    if (!isTopLeft) break;
+                if (row > 0 && board[row-1][col] == pieceType) {
+                    continue;
+                }
+                if (col > 0 && board[row][col-1] == pieceType) {
+                    continue;
                 }
 
-                if (!isTopLeft) continue;
+                // Get piece dimensions
+                int width = 1;
+                int height = 1;
+
+                // Determine piece dimensions
+                if (pieceType == MapModel.CAO_CAO) {
+                    width = 2;
+                    height = 2;
+                } else if (pieceType == MapModel.GUAN_YU) {
+                    width = 2;
+                    height = 1;
+                } else if (pieceType == MapModel.ZHOU_YU) {
+                    width = 3;
+                    height = 1;
+                }
 
                 // Try moving in all directions
                 for (Direction direction : Direction.values()) {

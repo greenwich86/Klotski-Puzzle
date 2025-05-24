@@ -167,6 +167,54 @@ public class GameFrame extends JFrame {
         JButton aiButton = new JButton("AI Solve");
         aiButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         setButtonStyle(aiButton, new Color(232, 189, 189), new Color(156, 206, 211));
+        aiButton.addActionListener(e -> {
+            // 创建带动画的"正在搜索"对话框
+            JDialog searchingDialog = new JDialog(this, "AI正在搜索", true);
+            searchingDialog.setUndecorated(true);
+            JPanel panel = new JPanel(new BorderLayout());
+            JLabel label = new JLabel("AI正在搜索，请稍候...", SwingConstants.CENTER);
+            label.setFont(new Font("微软雅黑", Font.BOLD, 18));
+            label.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+            panel.add(label, BorderLayout.NORTH);
+            // 使用进度条动画
+            JProgressBar bar = new JProgressBar();
+            bar.setIndeterminate(true);
+            bar.setPreferredSize(new Dimension(250, 30));
+            panel.add(bar, BorderLayout.CENTER);
+            searchingDialog.getContentPane().add(panel);
+            searchingDialog.setSize(300, 120);
+            searchingDialog.setLocationRelativeTo(this);
+
+            SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+                AISolver solver = new AISolver(controller.getModel(), controller);
+                @Override
+                protected Boolean doInBackground() {
+                    return solver.findSolution();
+                }
+                @Override
+                protected void done() {
+                    searchingDialog.dispose();
+                    try {
+                        if (get()) {
+                            solver.executeSolution();
+                        } else {
+                            JOptionPane.showMessageDialog(GameFrame.this,
+                                "No solution found for the current puzzle state.",
+                                "AI Solver",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                        JOptionPane.showMessageDialog(GameFrame.this,
+                            "AI搜索过程中发生错误！",
+                            "AI Solver",
+                            JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            };
+            worker.execute();
+            searchingDialog.setVisible(true);
+        });
         controlPanel.add(aiButton);
         controlPanel.add(Box.createRigidArea(new Dimension(0, 20)));
 

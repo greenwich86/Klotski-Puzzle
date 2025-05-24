@@ -1,5 +1,6 @@
 package controller;
 
+// Resolve ambiguous imports by using explicit imports
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -738,28 +739,8 @@ public class GameController {
      * Find a box component at a specific position
      */
     private BoxComponent findBoxAtPosition(int row, int col) {
-        // Add debug information
-        System.out.println("Finding box at position [" + row + "," + col + "]");
-        System.out.println("Current piece type: " + model.getId(row, col));
-        System.out.println("Total boxes in view: " + view.getBoxes().size());
-
-        // First, check if there's a box component exactly at this position
         for (BoxComponent box : view.getBoxes()) {
-            if (box.getRow() == row && box.getCol() == col) {
-                System.out.println("Found exact match at [" + row + "," + col + "]");
-                return box;
-            }
-        }
-
-        // If no exact match, try to find the origin of a multi-cell piece
-        int pieceType = model.getId(row, col);
-        System.out.println("No exact match, checking for multi-cell piece of type " + pieceType);
-
-        for (BoxComponent box : view.getBoxes()) {
-            // Debug each box's position and type
-            System.out.println("Checking box at [" + box.getRow() + "," + box.getCol() + 
-                             "] with type " + model.getId(box.getRow(), box.getCol()));
-            
+            int pieceType = model.getId(row, col);
             // For multi-cell pieces, we need to find the top-left corner
             int originRow = row;
             int originCol = col;
@@ -779,32 +760,13 @@ public class GameController {
                     originCol = col-1;
                 }
             } else if (pieceType == MapModel.GENERAL) { // 1x2
-                System.out.println("Checking GENERAL piece at [" + row + "," + col + "]");
-                
-                // For GENERAL pieces, check both above and below
-                boolean foundAbove = (row > 0 && model.getId(row-1, col) == pieceType);
-                boolean foundBelow = (row < model.getHeight()-1 && model.getId(row+1, col) == pieceType);
-                
-                System.out.println("Found above: " + foundAbove + ", Found below: " + foundBelow);
-                
-                // Check if this is a position between two GENERAL pieces
-                if (foundAbove && foundBelow) {
-                    // If we're between two GENERAL pieces, check which one we're trying to move
-                    // by looking at the box's current position
-                    if (box.getRow() == row-1) {
-                        // This is the upper GENERAL piece
-                        originRow = row-1;
-                        System.out.println("Using upper GENERAL piece at [" + originRow + "," + originCol + "]");
-                    } else if (box.getRow() == row) {
-                        // This is the lower GENERAL piece
-                        System.out.println("Using lower GENERAL piece at [" + originRow + "," + originCol + "]");
-                    }
-                } else if (foundAbove) {
+                // Check both above and below positions for GENERAL pieces
+                if (row > 0 && model.getId(row-1, col) == pieceType) {
+                    // Piece is above current position
                     originRow = row-1;
-                    System.out.println("Using position above as origin: [" + originRow + "," + originCol + "]");
-                } else if (foundBelow) {
-                    // Keep current row as origin
-                    System.out.println("Using current position as origin: [" + originRow + "," + originCol + "]");
+                } else if (row < model.getHeight()-1 && model.getId(row+1, col) == pieceType) {
+                    // Piece is below current position
+                    originRow = row;
                 }
             } else if (pieceType == MapModel.ZHOU_YU) { // 1x3
                 if (col > 0 && model.getId(row, col-1) == pieceType) {
@@ -815,17 +777,10 @@ public class GameController {
                 }
             }
 
-            // Debug the origin position we're looking for
-            System.out.println("Looking for box at origin [" + originRow + "," + originCol + "]");
-            
             if (box.getRow() == originRow && box.getCol() == originCol) {
-                System.out.println("Found matching box at origin!");
                 return box;
             }
         }
-        
-        // If we get here, we didn't find the box
-        System.out.println("No box found at position [" + row + "," + col + "]");
         return null;
     }
 
