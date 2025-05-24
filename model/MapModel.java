@@ -58,12 +58,19 @@ public class MapModel {
         },
         // Level 1 - Hard (6x4) 兵分三路
         {
-            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-            {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER},
-            {0, 0, 0, BLOCKED},
-            {GENERAL, SOLDIER, SOLDIER, GENERAL},
-            {GENERAL, 0, 0, GENERAL}
+//            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+//            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+//            {0, GUAN_YU, GUAN_YU, SOLDIER},
+//            {0, 0, 0, 0},
+//            {0, 0, SOLDIER, GENERAL},
+//            {0, 0, 0, GENERAL}
+
+                {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                {SOLDIER, 0, 0, 0},
+                {0, 0, SOLDIER, 0},
+                {GUAN_YU, GUAN_YU, 0, 0},
+                {0, 0, 0, 0}
         },
         // Level 2 - Expert (6x5) 巧过五关
         {
@@ -73,6 +80,8 @@ public class MapModel {
                 {SOLDIER, ZHOU_YU, ZHOU_YU, ZHOU_YU, SOLDIER, 0},
                 {GENERAL, SOLDIER, SOLDIER, GENERAL, MILITARY_CAMP, 0},
                 {GENERAL, 0, 0, GENERAL, 0, 0}
+
+
         },
         // Level 3 - Master (6x5) 四面楚歌
         {

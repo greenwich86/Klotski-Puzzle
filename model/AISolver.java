@@ -326,11 +326,11 @@ public class AISolver {
         int pathScore = calculatePathScore(board, caoCaoRow, caoCaoCol);
 
         // Combine all factors with adjusted weights
-        return manhattanDistance * 5 +     // 降低距离权重
-                linearConflicts * 10 +      // 降低冲突权重
-                patternScore * 8 +          // 降低模式权重
-                spaceScore * 15 +           // 增加空间权重
-                pathScore * 20;             // 增加路径权重
+        return manhattanDistance * 20 +     // 增加距离权重
+                linearConflicts * 15 +      // 增加冲突权重
+                patternScore * 5 +          // 降低模式权重
+                spaceScore * 8 +            // 降低空间权重
+                pathScore * 10;             // 降低路径权重
     }
 
     /**
@@ -348,7 +348,7 @@ public class AISolver {
                         emptyCells++;
                     }
                 }
-                score += emptyCells * 3;  // 降低空单元格奖励
+                score += emptyCells * 2;  // 降低空单元格奖励
             }
         }
 
@@ -359,7 +359,7 @@ public class AISolver {
                 int c = caoCaoCol + dc;
                 if (r >= 0 && r < board.length && c >= 0 && c < board[0].length) {
                     if (board[r][c] == 0) {
-                        score += 2;  // 降低周围空单元格奖励
+                        score += 1;  // 降低周围空单元格奖励
                     }
                 }
             }
@@ -380,6 +380,122 @@ public class AISolver {
             for (int col = 0; col < board[0].length; col++) {
                 int pieceType = board[row][col];
                 if (pieceType == 0) continue;  // Skip empty cells
+
+                // For Cao Cao, prioritize its movement
+                if (pieceType == MapModel.CAO_CAO) {
+                    // Only process if this is the top-left corner of Cao Cao
+                    if (row > 0 && board[row-1][col] == MapModel.CAO_CAO) continue;
+                    if (col > 0 && board[row][col-1] == MapModel.CAO_CAO) continue;
+
+                    // Try moving in all directions
+                    for (Direction direction : Direction.values()) {
+                        if (canMove(board, row, col, 2, 2, direction)) {
+                            // Create a new board for this move
+                            int[][] newBoard = deepCopyBoard(board);
+                            Move move = new Move(row, col, direction);
+
+                            // Calculate new position
+                            int newRow = row;
+                            int newCol = col;
+                            switch (direction) {
+                                case UP: newRow--; break;
+                                case DOWN: newRow++; break;
+                                case LEFT: newCol--; break;
+                                case RIGHT: newCol++; break;
+                            }
+
+                            // Clear old positions
+                            for (int r = 0; r < 2; r++) {
+                                for (int c = 0; c < 2; c++) {
+                                    newBoard[row + r][col + c] = 0;
+                                }
+                            }
+
+                            // Set new positions
+                            for (int r = 0; r < 2; r++) {
+                                for (int c = 0; c < 2; c++) {
+                                    newBoard[newRow + r][newCol + c] = pieceType;
+                                }
+                            }
+
+                            nextStates.add(new State(newBoard, current, current.g + 1,
+                                    calculateHeuristic(newBoard),
+                                    move));
+                        }
+                    }
+                    continue;
+                }
+
+                // For generals, we need to try each one individually
+                if (pieceType == MapModel.GENERAL) {
+                    // Only process if this is the top of the general piece
+                    if (row > 0 && board[row-1][col] == MapModel.GENERAL) continue;
+                    
+                    // Verify general piece integrity (2x1)
+                    boolean isVertical = true;
+                    if (row + 1 < board.length && board[row + 1][col] == MapModel.GENERAL) {
+                        isVertical = true;
+                    } else if (col + 1 < board[0].length && board[row][col + 1] == MapModel.GENERAL) {
+                        isVertical = false;
+                    } else {
+                        continue;  // Not a valid general piece
+                    }
+
+                    // Try moving in all directions
+                    for (Direction direction : Direction.values()) {
+                        int width = isVertical ? 1 : 2;
+                        int height = isVertical ? 2 : 1;
+                        
+                        if (canMove(board, row, col, width, height, direction)) {
+                            // Create a new board for this move
+                            int[][] newBoard = deepCopyBoard(board);
+                            Move move = new Move(row, col, direction);
+
+                            // Calculate new position
+                            int newRow = row;
+                            int newCol = col;
+                            switch (direction) {
+                                case UP: newRow--; break;
+                                case DOWN: newRow++; break;
+                                case LEFT: newCol--; break;
+                                case RIGHT: newCol++; break;
+                            }
+
+                            // Clear old positions
+                            for (int r = 0; r < height; r++) {
+                                for (int c = 0; c < width; c++) {
+                                    newBoard[row + r][col + c] = 0;
+                                }
+                            }
+
+                            // Set new positions
+                            for (int r = 0; r < height; r++) {
+                                for (int c = 0; c < width; c++) {
+                                    newBoard[newRow + r][newCol + c] = pieceType;
+                                }
+                            }
+
+                            // Verify piece integrity after move
+                            boolean isValid = true;
+                            for (int r = 0; r < height; r++) {
+                                for (int c = 0; c < width; c++) {
+                                    if (newBoard[newRow + r][newCol + c] != pieceType) {
+                                        isValid = false;
+                                        break;
+                                    }
+                                }
+                                if (!isValid) break;
+                            }
+
+                            if (isValid) {
+                                nextStates.add(new State(newBoard, current, current.g + 1,
+                                        calculateHeuristic(newBoard),
+                                        move));
+                            }
+                        }
+                    }
+                    continue;
+                }
 
                 // For soldiers, we need to try each one individually
                 if (pieceType == MapModel.SOLDIER) {
@@ -409,44 +525,6 @@ public class AISolver {
                             nextStates.add(new State(newBoard, current, current.g + 1,
                                     calculateHeuristic(newBoard),
                                     move));
-                        }
-                    }
-                    continue;
-                }
-
-                // For generals, we need to try each one individually
-                if (pieceType == MapModel.GENERAL) {
-                    // Check if this is a general piece
-                    if (row + 1 < board.length && board[row + 1][col] == MapModel.GENERAL) {
-                        // Try moving in all directions
-                        for (Direction direction : Direction.values()) {
-                            if (canMove(board, row, col, 1, 2, direction)) {
-                                // Create a new board for this move
-                                int[][] newBoard = deepCopyBoard(board);
-                                Move move = new Move(row, col, direction);
-
-                                // Calculate new position
-                                int newRow = row;
-                                int newCol = col;
-                                switch (direction) {
-                                    case UP: newRow--; break;
-                                    case DOWN: newRow++; break;
-                                    case LEFT: newCol--; break;
-                                    case RIGHT: newCol++; break;
-                                }
-
-                                // Clear old positions
-                                newBoard[row][col] = 0;
-                                newBoard[row+1][col] = 0;
-
-                                // Set new positions
-                                newBoard[newRow][newCol] = pieceType;
-                                newBoard[newRow+1][newCol] = pieceType;
-
-                                nextStates.add(new State(newBoard, current, current.g + 1,
-                                        calculateHeuristic(newBoard),
-                                        move));
-                            }
                         }
                     }
                     continue;
@@ -1011,9 +1089,12 @@ public class AISolver {
      * Find Cao Cao's position in the board
      */
     private int[] findCaoCaoPosition(int[][] board) {
-        for (int r = 0; r < board.length; r++) {
-            for (int c = 0; c < board[0].length; c++) {
-                if (board[r][c] == 1) {
+        for (int r = 0; r < board.length - 1; r++) {
+            for (int c = 0; c < board[0].length - 1; c++) {
+                if (board[r][c] == MapModel.CAO_CAO &&
+                    board[r][c+1] == MapModel.CAO_CAO &&
+                    board[r+1][c] == MapModel.CAO_CAO &&
+                    board[r+1][c+1] == MapModel.CAO_CAO) {
                     return new int[]{r, c};
                 }
             }

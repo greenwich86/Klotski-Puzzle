@@ -24,6 +24,13 @@ import view.game.GamePanel;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
+import model.AutoSaveManager;
+import model.SaveFileValidator;
+import java.awt.Frame;
+import org.json.JSONObject;
+import org.json.JSONArray;
+import java.io.FileWriter;
+import java.nio.file.Files;
 
 /**
  * It is a bridge to combine GamePanel(view) and MapMatrix(model) in one game.
@@ -39,6 +46,8 @@ public class GameController {
     // Props management
     private Map<Prop.PropType, Prop> availableProps = new HashMap<>();
     private ArrayList<int[]> removedObstacles = new ArrayList<>(); // [row, col, stepsRemaining]
+
+    private AutoSaveManager autoSaveManager;
 
     public GameController(GamePanel view, MapModel model) {
         this.moveHistory = new Stack<>();
@@ -56,6 +65,10 @@ public class GameController {
 
     public void setCurrentUser(String username) {
         this.currentUser = username;
+        if (username != null && !username.isEmpty()) {
+            this.autoSaveManager = new AutoSaveManager(username, this);
+            this.autoSaveManager.startAutoSave();
+        }
     }
 
     public void setLevel(int level) {
@@ -1194,29 +1207,80 @@ public class GameController {
                 savesDir.mkdir();
             }
 
-            File saveFile = new File("saves/" + currentUser + ".sav");
-            try (FileOutputStream fos = new FileOutputStream(saveFile);
-                 DataOutputStream dos = new DataOutputStream(fos)) {
+            // Create JSON object for game state
+            JSONObject gameState = new JSONObject();
+            gameState.put("username", currentUser);
+            gameState.put("moveCount", moveCount);
+            gameState.put("currentLevel", currentLevel);
+            gameState.put("height", model.getHeight());
+            gameState.put("width", model.getWidth());
 
-                // Write username
-                dos.writeUTF(currentUser);
+            // Save board state as 2D array
+            JSONArray board = new JSONArray();
+            for (int i = 0; i < model.getHeight(); i++) {
+                JSONArray row = new JSONArray();
+                for (int j = 0; j < model.getWidth(); j++) {
+                    row.put(model.getMatrix()[i][j]);
+                }
+                board.put(row);
+            }
+            gameState.put("board", board);
 
-                // Write move count
-                dos.writeInt(moveCount);
+            // Save props state
+            JSONObject props = new JSONObject();
+            for (Prop.PropType type : Prop.PropType.values()) {
+                props.put(type.name(), getPropCount(type));
+            }
+            gameState.put("props", props);
 
-                // Write board dimensions
-                dos.writeInt(model.getHeight());
-                dos.writeInt(model.getWidth());
+            // Save removed obstacles
+            JSONArray removedObstaclesArray = new JSONArray();
+            for (int[] obstacle : removedObstacles) {
+                JSONArray obstacleData = new JSONArray();
+                obstacleData.put(obstacle[0]); // row
+                obstacleData.put(obstacle[1]); // col
+                obstacleData.put(obstacle[2]); // steps remaining
+                removedObstaclesArray.put(obstacleData);
+            }
+            gameState.put("removedObstacles", removedObstaclesArray);
 
-                // Write board state
-                for (int i = 0; i < model.getHeight(); i++) {
-                    for (int j = 0; j < model.getWidth(); j++) {
-                        dos.writeInt(model.getMatrix()[i][j]);
+            // Save time attack mode state
+            view.game.GameFrame gameFrame = null;
+            if (view.getParent() != null && view.getParent().getParent() instanceof view.game.GameFrame) {
+                gameFrame = (view.game.GameFrame) view.getParent().getParent();
+            } else {
+                for (Frame frame : Frame.getFrames()) {
+                    if (frame instanceof view.game.GameFrame) {
+                        gameFrame = (view.game.GameFrame) frame;
+                        break;
                     }
                 }
-
-                JOptionPane.showMessageDialog(view, "Game saved successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             }
+
+            if (gameFrame != null) {
+                boolean timeAttackMode = gameFrame.isTimeAttackMode();
+                int timeLimit = gameFrame.getTimeLimit();
+                int remainingTime = gameFrame.getRemainingTime(); // 获取剩余时间
+                System.out.println("Saving time attack mode: " + timeAttackMode + 
+                    ", time limit: " + timeLimit + 
+                    ", remaining time: " + remainingTime);
+                gameState.put("timeAttackMode", timeAttackMode);
+                gameState.put("timeLimit", timeLimit);
+                gameState.put("remainingTime", remainingTime); // 保存剩余时间
+            } else {
+                System.out.println("Warning: Could not find GameFrame to save time attack mode");
+                gameState.put("timeAttackMode", false);
+                gameState.put("timeLimit", 0);
+                gameState.put("remainingTime", 0);
+            }
+
+            // Write to file
+            File saveFile = new File("saves/" + currentUser + ".sav");
+            try (FileWriter writer = new FileWriter(saveFile)) {
+                writer.write(gameState.toString(2)); // Pretty print with 2 spaces indentation
+            }
+
+            JOptionPane.showMessageDialog(view, "Game saved successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(view, "Failed to save game: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
@@ -1276,47 +1340,184 @@ public class GameController {
         }
 
         File saveFile = new File("saves/" + currentUser + ".sav");
-        if (!saveFile.exists()) {
-            JOptionPane.showMessageDialog(view, "No saved game found", "Error", JOptionPane.ERROR_MESSAGE);
-            return false;
+        boolean manualSaveFailed = false;
+
+        if (saveFile.exists()) {
+            try {
+                // Read JSON from file
+                String jsonContent = new String(Files.readAllBytes(saveFile.toPath()));
+                JSONObject gameState = new JSONObject(jsonContent);
+
+                // Verify username
+                String username = gameState.getString("username");
+                if (!username.equals(currentUser)) {
+                    throw new Exception("Save file does not belong to current user");
+                }
+
+                // Load basic game state
+                moveCount = gameState.getInt("moveCount");
+                currentLevel = gameState.getInt("currentLevel");
+                int height = gameState.getInt("height");
+                int width = gameState.getInt("width");
+
+                // Load board state
+                JSONArray board = gameState.getJSONArray("board");
+                int[][] loadedMatrix = new int[height][width];
+                for (int i = 0; i < height; i++) {
+                    JSONArray row = board.getJSONArray(i);
+                    for (int j = 0; j < width; j++) {
+                        loadedMatrix[i][j] = row.getInt(j);
+                    }
+                }
+
+                // Load props
+                JSONObject props = gameState.getJSONObject("props");
+                for (Prop.PropType type : Prop.PropType.values()) {
+                    if (props.has(type.name())) {
+                        int count = props.getInt(type.name());
+                        if (count > 0) {
+                            availableProps.put(type, new Prop(type, count));
+                        }
+                    }
+                }
+
+                // Load removed obstacles
+                removedObstacles.clear();
+                JSONArray removedObstaclesArray = gameState.getJSONArray("removedObstacles");
+                for (int i = 0; i < removedObstaclesArray.length(); i++) {
+                    JSONArray obstacleData = removedObstaclesArray.getJSONArray(i);
+                    removedObstacles.add(new int[]{
+                        obstacleData.getInt(0), // row
+                        obstacleData.getInt(1), // col
+                        obstacleData.getInt(2)  // steps remaining
+                    });
+                }
+
+                // Update model and view
+                this.model = new MapModel(loadedMatrix);
+                this.moveHistory.clear();
+                this.moveHistory.push(model.copyMatrix());
+                view.resetBoard(loadedMatrix);
+                view.updateMoveCount(moveCount);
+                view.requestFocusInWindow();
+
+                // Restore time attack mode
+                view.game.GameFrame gameFrame = null;
+                if (view.getParent() != null && view.getParent().getParent() instanceof view.game.GameFrame) {
+                    gameFrame = (view.game.GameFrame) view.getParent().getParent();
+                } else {
+                    for (Frame frame : Frame.getFrames()) {
+                        if (frame instanceof view.game.GameFrame) {
+                            gameFrame = (view.game.GameFrame) frame;
+                            break;
+                        }
+                    }
+                }
+
+                if (gameFrame != null) {
+                    boolean timeAttackMode = gameState.getBoolean("timeAttackMode");
+                    int timeLimit = gameState.getInt("timeLimit");
+                    int remainingTime = gameState.getInt("remainingTime");
+                    System.out.println("Loading time attack mode: " + timeAttackMode + 
+                        ", time limit: " + timeLimit + 
+                        ", remaining time: " + remainingTime);
+                    
+                    if (remainingTime > 0) {
+                        System.out.println("Attempting to restore time attack mode...");
+                        gameFrame.setTimeAttackMode(true, timeLimit, remainingTime);
+                        System.out.println("Time attack mode restored");
+                    } else {
+                        System.out.println("Not in time attack mode, skipping timer restoration");
+                    }
+                } else {
+                    System.out.println("Warning: Could not find GameFrame to restore time attack mode");
+                }
+
+                return true;
+            } catch (Exception e) {
+                manualSaveFailed = true;
+                System.err.println("Failed to load manual save: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
 
-        try (FileInputStream fis = new FileInputStream(saveFile);
-             DataInputStream dis = new DataInputStream(fis)) {
-
-            // Read username
-            String username = dis.readUTF();
-            if (!username.equals(currentUser)) {
-                throw new Exception("Save file does not belong to current user");
-            }
-
-            // Read move count
-            moveCount = dis.readInt();
-
-            // Read board dimensions
-            int height = dis.readInt();
-            int width = dis.readInt();
-
-            // Read board state
-            int[][] loadedMatrix = new int[height][width];
-            for (int i = 0; i < height; i++) {
-                for (int j = 0; j < width; j++) {
-                    loadedMatrix[i][j] = dis.readInt();
+        // 如果手动存档不存在或加载失败，尝试加载自动存档
+        if (!saveFile.exists() || manualSaveFailed) {
+            if (autoSaveManager != null) {
+                List<AutoSaveManager.AutoSaveInfo> autoSaves = autoSaveManager.getAvailableAutoSaves();
+                if (!autoSaves.isEmpty()) {
+                    int choice = JOptionPane.showConfirmDialog(view,
+                        manualSaveFailed ? 
+                            "手动存档加载失败，是否从自动存档恢复？" :
+                            "未找到主存档，是否从自动存档恢复？",
+                        "恢复自动存档",
+                        JOptionPane.YES_NO_OPTION);
+                        
+                    if (choice == JOptionPane.YES_OPTION) {
+                        return recoverFromAutoSave();
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(view, 
+                        manualSaveFailed ? 
+                            "手动存档加载失败，且没有可用的自动存档" :
+                            "未找到主存档，且没有可用的自动存档", 
+                        "加载失败", 
+                        JOptionPane.ERROR_MESSAGE);
                 }
             }
+        }
 
-            this.model = new MapModel(loadedMatrix);
-            this.moveHistory.clear();
-            this.moveHistory.push(model.copyMatrix());
-            view.resetBoard(loadedMatrix);
-            view.updateMoveCount(moveCount);
-            view.requestFocusInWindow();
+        return false;
+    }
 
-            return true;
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(view, "Failed to load game: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
+    /**
+     * 从自动存档恢复
+     */
+    private boolean recoverFromAutoSave() {
+        if (autoSaveManager == null) {
             return false;
         }
+
+        List<AutoSaveManager.AutoSaveInfo> autoSaves = autoSaveManager.getAvailableAutoSaves();
+        if (autoSaves.isEmpty()) {
+            JOptionPane.showMessageDialog(view, "没有可用的自动存档", "恢复失败", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+
+        // 创建自动存档选择对话框
+        String[] options = autoSaves.stream()
+            .map(AutoSaveManager.AutoSaveInfo::toString)
+            .toArray(String[]::new);
+
+        int choice = JOptionPane.showOptionDialog(view,
+            "请选择要恢复的自动存档：",
+            "选择自动存档",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]);
+
+        if (choice >= 0 && choice < autoSaves.size()) {
+            return autoSaveManager.recoverFromAutoSave(autoSaves.get(choice).file);
+        }
+
+        return false;
+    }
+
+    /**
+     * Gets the list of removed obstacles
+     * @return The list of removed obstacles
+     */
+    public ArrayList<int[]> getRemovedObstacles() {
+        return removedObstacles;
+    }
+
+    /**
+     * Gets the map of available props
+     * @return The map of available props
+     */
+    public Map<Prop.PropType, Prop> getAvailableProps() {
+        return availableProps;
     }
 }
