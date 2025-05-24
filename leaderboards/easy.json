@@ -1,0 +1,22 @@
+[
+  {
+    "moves": 3,
+    "username": "test",
+    "timestamp": 1748086050707
+  },
+  {
+    "moves": 45,
+    "username": "Player1",
+    "timestamp": 1748086025384
+  },
+  {
+    "moves": 48,
+    "username": "Player3",
+    "timestamp": 1748086025389
+  },
+  {
+    "moves": 52,
+    "username": "Player2",
+    "timestamp": 1748086025388
+  }
+]

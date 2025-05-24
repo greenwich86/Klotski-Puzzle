@@ -693,6 +693,7 @@ public class AISolver {
         }
 
         isSolving = true;
+        controller.setAISolving(true);  // Set AI solving flag
         final int[] moveIndex = {0};
         final long[] lastMoveTime = {System.currentTimeMillis()};
 
@@ -705,6 +706,7 @@ public class AISolver {
             if (moveIndex[0] >= solution.size()) {
                 ((Timer)e.getSource()).stop();
                 isSolving = false;
+                controller.setAISolving(false);  // Reset AI solving flag
 
                 JOptionPane.showMessageDialog(
                         null,

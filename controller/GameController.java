@@ -31,6 +31,8 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 import java.io.FileWriter;
 import java.nio.file.Files;
+import model.LeaderboardManager;
+import model.Difficulty;
 
 /**
  * It is a bridge to combine GamePanel(view) and MapMatrix(model) in one game.
@@ -40,8 +42,12 @@ public class GameController {
     private final GamePanel view;
     private MapModel model;
     private Stack<int[][]> moveHistory;
+    private Stack<int[][]> redoHistory;
     private String currentUser;
     private int currentLevel;
+    private int moveCount;
+    private boolean isAISolving;
+    private LeaderboardManager leaderboardManager;
 
     // Props management
     private Map<Prop.PropType, Prop> availableProps = new HashMap<>();
@@ -51,13 +57,15 @@ public class GameController {
 
     public GameController(GamePanel view, MapModel model) {
         this.moveHistory = new Stack<>();
+        this.redoHistory = new Stack<>();
         this.view = view;
         this.model = model;
         this.currentLevel = 0; // Default to first level
+        this.moveCount = 0;
+        this.isAISolving = false;
+        this.leaderboardManager = new LeaderboardManager();
         view.setController(this);
     }
-
-    private int moveCount = 0;
 
     public int getMoveCount() {
         return moveCount;
@@ -77,6 +85,7 @@ public class GameController {
         this.model = new MapModel(level);
         this.moveCount = 0;
         this.moveHistory.clear();
+        this.redoHistory.clear();
         moveHistory.push(model.copyMatrix());
         view.resetBoard(model.getMatrix());
         view.updateMoveCount(0);
@@ -172,6 +181,7 @@ public class GameController {
         this.model = new MapModel(level);
         this.moveCount = 0;
         this.moveHistory.clear();
+        this.redoHistory.clear();
         // Save initial state to allow undo back to start
         moveHistory.push(model.copyMatrix());
         view.resetBoard(model.getMatrix());
@@ -1153,6 +1163,8 @@ public class GameController {
                     System.out.println("  [3][1] - [3][2]");
                     System.out.println("  [4][1] - [4][2]");
 
+                    // Call checkWin to update leaderboard and show victory message
+                    checkWin();
                     showVictory();
                 }
             }
@@ -1519,5 +1531,67 @@ public class GameController {
      */
     public Map<Prop.PropType, Prop> getAvailableProps() {
         return availableProps;
+    }
+
+    public void setAISolving(boolean isAISolving) {
+        this.isAISolving = isAISolving;
+    }
+
+    public void checkWin() {
+        System.out.println("Checking win condition...");
+        System.out.println("isWin: " + model.isWin());
+        System.out.println("isAISolving: " + isAISolving);
+        System.out.println("currentUser: " + currentUser);
+        System.out.println("moveCount: " + moveCount);
+        
+        if (model.isWin() && !isAISolving) {
+            // Only update leaderboard if not using AI solver
+            Difficulty difficulty = getCurrentDifficulty();
+            System.out.println("Current difficulty: " + difficulty);
+            
+            if (difficulty != null) {
+                System.out.println("Adding entry to leaderboard: " + currentUser + " with " + moveCount + " moves");
+                leaderboardManager.addEntry(difficulty, currentUser, moveCount);
+            } else {
+                System.out.println("Difficulty is null, cannot add to leaderboard");
+            }
+            
+            JOptionPane.showMessageDialog(view,
+                    "Congratulations! You solved the puzzle in " + moveCount + " moves!",
+                    "Victory!",
+                    JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            System.out.println("Not updating leaderboard because:");
+            if (!model.isWin()) System.out.println("- Game is not won");
+            if (isAISolving) System.out.println("- AI is solving");
+        }
+    }
+
+    private Difficulty getCurrentDifficulty() {
+        int level = currentLevel;  // Use currentLevel instead of model.getCurrentLevel()
+        System.out.println("Getting difficulty for level: " + level);
+        
+        switch (level) {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+                return Difficulty.EASY;
+            case 4:
+            case 5:
+            case 6:
+                return Difficulty.MEDIUM;
+            case 7:
+            case 8:
+            case 9:
+                return Difficulty.HARD;
+            case 10:
+            case 11:
+            case 12:
+                return Difficulty.EXPERT;
+            default:
+                System.out.println("Unknown level: " + level);
+                return null;
+        }
     }
 }

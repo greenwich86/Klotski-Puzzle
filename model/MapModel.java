@@ -164,4 +164,22 @@ public class MapModel {
     public int getCurrentLevel() {
         return currentLevel;
     }
+
+    public boolean isWin() {
+        // Check if Cao Cao is at the bottom center of the board
+        int boardHeight = getHeight();
+        int boardWidth = getWidth();
+        int goalRow = boardHeight - 2;
+        int goalCol = (boardWidth - 2) / 2;
+
+        // Check if Cao Cao is at the goal position
+        for (int r = goalRow; r < goalRow + 2; r++) {
+            for (int c = goalCol; c < goalCol + 2; c++) {
+                if (r >= boardHeight || c >= boardWidth || matrix[r][c] != CAO_CAO) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }

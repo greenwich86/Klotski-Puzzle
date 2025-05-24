@@ -3,6 +3,7 @@ package view.menu;
 import view.game.GameFrame;
 import view.login.LoginFrame;
 import model.MapModel;
+import view.LeaderboardFrame;
 
 import javax.swing.*;
 import javax.swing.border.*;
@@ -96,6 +97,9 @@ public class SelectionMenuFrame extends JFrame {
         JButton rulesBtn = createMenuButton("Game Rules");
         rulesBtn.addActionListener(e -> showGameRules());
 
+        JButton leaderboardBtn = createMenuButton("Leaderboard");
+        leaderboardBtn.addActionListener(e -> showLeaderboard());
+
         JButton logoutBtn = createMenuButton("Logout");
         logoutBtn.addActionListener(e -> logout());
 
@@ -105,6 +109,8 @@ public class SelectionMenuFrame extends JFrame {
         buttonPanel.add(loadGameBtn);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 25)));
         buttonPanel.add(rulesBtn);
+        buttonPanel.add(Box.createRigidArea(new Dimension(0, 25)));
+        buttonPanel.add(leaderboardBtn);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 25)));
         buttonPanel.add(logoutBtn);
         buttonPanel.add(Box.createVerticalGlue());
@@ -234,6 +240,11 @@ public class SelectionMenuFrame extends JFrame {
                         "</html>",
                 "Game Rules",
                 JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showLeaderboard() {
+        LeaderboardFrame leaderboardFrame = new LeaderboardFrame();
+        leaderboardFrame.setVisible(true);
     }
 
     private void logout() {
