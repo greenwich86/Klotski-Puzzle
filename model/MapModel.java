@@ -182,4 +182,14 @@ public class MapModel {
         }
         return true;
     }
+
+    public void reset() {
+        // Reset the map to its initial state
+        int rows = LEVELS[currentLevel].length;
+        int cols = LEVELS[currentLevel][0].length;
+        this.matrix = new int[rows][cols];
+        for (int i = 0; i < rows; i++) {
+            System.arraycopy(LEVELS[currentLevel][i], 0, this.matrix[i], 0, cols);
+        }
+    }
 }

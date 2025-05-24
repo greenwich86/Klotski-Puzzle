@@ -1198,12 +1198,22 @@ public class GameController {
             try { Thread.sleep(200); } catch (InterruptedException e) {}
         }
 
-        // More prominent victory message
-        JOptionPane.showMessageDialog(view,
-                String.format("<html><h1>VICTORY!</h1><br>You won in %d moves!</html>", moveCount),
-                "Klotski Puzzle Solved!",
-                JOptionPane.INFORMATION_MESSAGE);
+        // Get time attack mode info
+        view.game.GameFrame gameFrame = null;
+        boolean isTimeAttack = false;
+        int remainingTime = 0;
 
+        if (view.getParent() != null && view.getParent().getParent() instanceof view.game.GameFrame) {
+            gameFrame = (view.game.GameFrame) view.getParent().getParent();
+            isTimeAttack = gameFrame.isTimeAttackMode();
+            remainingTime = gameFrame.getRemainingTime();
+        }
+
+        // Show victory frame
+        view.VictoryFrame victoryFrame = new view.VictoryFrame(moveCount, remainingTime, isTimeAttack);
+        victoryFrame.setVisible(true);
+
+        // Restart game
         restartGame();
     }
 
@@ -1568,30 +1578,32 @@ public class GameController {
     }
 
     private Difficulty getCurrentDifficulty() {
-        int level = currentLevel;  // Use currentLevel instead of model.getCurrentLevel()
-        System.out.println("Getting difficulty for level: " + level);
-        
-        switch (level) {
+        switch (currentLevel) {
             case 0:
-            case 1:
-            case 2:
-            case 3:
                 return Difficulty.EASY;
-            case 4:
-            case 5:
-            case 6:
-                return Difficulty.MEDIUM;
-            case 7:
-            case 8:
-            case 9:
+            case 1:
                 return Difficulty.HARD;
-            case 10:
-            case 11:
-            case 12:
+            case 2:
                 return Difficulty.EXPERT;
+            case 3:
+                return Difficulty.MASTER;
             default:
-                System.out.println("Unknown level: " + level);
+                System.out.println("Unknown level: " + currentLevel);
                 return null;
+        }
+    }
+
+    public void resetGame() {
+        // Reset the game state by reinitializing the map
+        model = new MapModel();
+        // Reset the move counter
+        moveCount = 0;
+        // Reset the timer if in time attack mode
+        if (view.getParent() != null && view.getParent().getParent() instanceof view.game.GameFrame) {
+            view.game.GameFrame gameFrame = (view.game.GameFrame) view.getParent().getParent();
+            if (gameFrame.isTimeAttackMode()) {
+                gameFrame.startTimeAttack();
+            }
         }
     }
 }
