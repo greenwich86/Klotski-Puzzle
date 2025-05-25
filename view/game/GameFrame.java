@@ -595,14 +595,15 @@ public class GameFrame extends JFrame {
     private void showVictoryDialog() {
         playVictorySound();
 
+
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setBackground(new Color(240, 255, 240));
         contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel titleLabel = new JLabel("🎉 Success!");
-        titleLabel.setFont(new Font("Inter", Font.BOLD, 24));
-        titleLabel.setForeground(new Color(30, 130, 76));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
+        titleLabel.setForeground(new Color(199, 69, 69));
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel msgLabel = new JLabel("You successfully moved Cao Cao to the exit!");

@@ -12,6 +12,12 @@ import java.util.List;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
+
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+
 /**
  * It is the subclass of ListenerPanel, so that it should implement those four methods: do move left, up, down ,right.
  * The class contains a grids, which is the corresponding GUI view of the matrix variable in MapMatrix.
@@ -598,9 +604,7 @@ public class GamePanel extends ListenerPanel {
         if (xOffset < 100) xOffset = 100;
         if (yOffset < 80) yOffset = 80;
 
-        // Draw background with level-specific adjustments
-        g2d.setColor(new Color(240, 240, 255)); // Light blue-gray
-
+        g2d.setColor(new Color( 191, 223,222));
         if (model.getWidth() == 5 && model.getHeight() == 4) {
             // Special handling for level 3 (5x4 grid)
             int topHeight = yOffset - 4;
@@ -621,15 +625,12 @@ public class GamePanel extends ListenerPanel {
                     this.getHeight() - (yOffset + boardHeight + 2)); // Bottom
         }
 
-        // Draw chessboard area (wheat color)
-        g2d.setColor(new Color(245, 222, 179));
+        g2d.setColor(new Color(226, 220, 204));
         g2d.fillRect(xOffset - 2, yOffset - 2, boardWidth + 4, boardHeight + 4);
 
-        // Draw inner chessboard (cornsilk)
-        g2d.setColor(new Color(255, 248, 220));
+        g2d.setColor(new Color(226, 220, 204));
         g2d.fillRect(xOffset, yOffset, boardWidth, boardHeight);
 
-        // Reuse existing board position variables for exit alignment
 
         // Draw exit position centered at the bottom center of the board
         int exitWidth = 2 * GRID_SIZE; // Fixed width of 2 grid cells
