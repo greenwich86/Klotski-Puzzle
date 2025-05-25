@@ -58,12 +58,19 @@ public class MapModel {
         },
         // Level 1 - Hard (6x4) 兵分三路
         {
-            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
-            {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER},
-            {0, 0, 0, BLOCKED},
-            {GENERAL, SOLDIER, SOLDIER, GENERAL},
-            {GENERAL, 0, 0, GENERAL}
+//            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+//            {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+//            {0, GUAN_YU, GUAN_YU, SOLDIER},
+//            {0, 0, 0, 0},
+//            {0, 0, SOLDIER, GENERAL},
+//            {0, 0, 0, GENERAL}
+
+                {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                {GENERAL, CAO_CAO, CAO_CAO, GENERAL},
+                {SOLDIER, 0, 0, 0},
+                {0, 0, SOLDIER, 0},
+                {GUAN_YU, GUAN_YU, 0, 0},
+                {0, 0, 0, 0}
         },
         // Level 2 - Expert (6x5) 巧过五关
         {
@@ -73,6 +80,8 @@ public class MapModel {
                 {SOLDIER, ZHOU_YU, ZHOU_YU, ZHOU_YU, SOLDIER, 0},
                 {GENERAL, SOLDIER, SOLDIER, GENERAL, MILITARY_CAMP, 0},
                 {GENERAL, 0, 0, GENERAL, 0, 0}
+
+
         },
         // Level 3 - Master (6x5) 四面楚歌
         {
@@ -154,5 +163,33 @@ public class MapModel {
 
     public int getCurrentLevel() {
         return currentLevel;
+    }
+
+    public boolean isWin() {
+        // Check if Cao Cao is at the bottom center of the board
+        int boardHeight = getHeight();
+        int boardWidth = getWidth();
+        int goalRow = boardHeight - 2;
+        int goalCol = (boardWidth - 2) / 2;
+
+        // Check if Cao Cao is at the goal position
+        for (int r = goalRow; r < goalRow + 2; r++) {
+            for (int c = goalCol; c < goalCol + 2; c++) {
+                if (r >= boardHeight || c >= boardWidth || matrix[r][c] != CAO_CAO) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public void reset() {
+        // Reset the map to its initial state
+        int rows = LEVELS[currentLevel].length;
+        int cols = LEVELS[currentLevel][0].length;
+        this.matrix = new int[rows][cols];
+        for (int i = 0; i < rows; i++) {
+            System.arraycopy(LEVELS[currentLevel][i], 0, this.matrix[i], 0, cols);
+        }
     }
 }

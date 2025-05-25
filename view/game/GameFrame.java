@@ -21,13 +21,16 @@ public class GameFrame extends JFrame {
     private JButton loadBtn;
     private SelectionMenuFrame parentFrame; // Reference to the menu
     private boolean guestMode = false;
-    private boolean timeAttackMode = false;
+    private boolean isTimeAttackMode = false;
     private int timeLimit = 0; // Time limit in minutes
     private JLabel stepLabel;
     private JLabel timerLabel;
     private GamePanel gamePanel;
     private Timer countdownTimer;
     public PropPanel propPanel;
+    private int currentTimeLeft = 0;  // 添加成员变量来跟踪剩余时间
+    private Timer timeAttackTimer;
+    private int remainingTime;
 
     private void setButtonStyle(JButton button, Color bgColor, Color borderColor) {
         button.setFont(new Font("微软雅黑", Font.BOLD, 14));
@@ -145,11 +148,13 @@ public class GameFrame extends JFrame {
         stepLabel.setFont(new Font("serif", Font.ITALIC, 22));
         stepLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        this.timerLabel = new JLabel("");
+        this.timerLabel = new JLabel("Time: 00:00");
         timerLabel.setFont(new Font("serif", Font.BOLD, 22));
         timerLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        timerLabel.setForeground(Color.RED);
-        timerLabel.setVisible(false);
+        timerLabel.setForeground(Color.BLACK);
+        timerLabel.setVisible(false);  // 默认设置为不可见
+        timerLabel.setPreferredSize(new Dimension(200, 30));
+        timerLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
 
         statsPanel.add(stepLabel);
         statsPanel.add(Box.createRigidArea(new Dimension(0, 5)));
@@ -293,8 +298,7 @@ public class GameFrame extends JFrame {
         restartBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
         setButtonStyle(restartBtn, new Color(232, 189, 189), new Color(156, 206, 211));
         restartBtn.addActionListener(e -> {
-            controller.restartGame();
-            gamePanel.requestFocusInWindow();
+            restartGame();
         });
         // Undo
         JButton undoBtn = new JButton("Undo");
@@ -367,9 +371,7 @@ public class GameFrame extends JFrame {
      */
     private void returnToMenu() {
         if (parentFrame != null) {
-            if (countdownTimer != null && countdownTimer.isRunning()) {
-                countdownTimer.stop();
-            }
+            resetTimerState();  // 在返回菜单时重置计时器状态
             parentFrame.setVisible(true);
             this.setVisible(false);
         } else {
@@ -462,10 +464,8 @@ public class GameFrame extends JFrame {
         }
     }
 
-    private int currentTimeLeft = 0;
-
     public boolean addTimeToTimer(int secondsToAdd) {
-        if (!timeAttackMode || countdownTimer == null || !countdownTimer.isRunning()) {
+        if (!isTimeAttackMode || countdownTimer == null || !countdownTimer.isRunning()) {
             return false;
         }
 
@@ -512,37 +512,75 @@ public class GameFrame extends JFrame {
         flashTimer.start();
     }
 
-    public void setTimeAttackMode(boolean enabled, int minutes) {
-        this.timeAttackMode = enabled;
-        this.timeLimit = minutes;
-
-        if (countdownTimer != null && countdownTimer.isRunning()) {
+    private void resetTimerState() {
+        if (countdownTimer != null) {
             countdownTimer.stop();
+            countdownTimer = null;
         }
+        currentTimeLeft = 0;
+        timerLabel.setText("Time: 00:00");
+        timerLabel.setVisible(false);  // 重置时设置为不可见
+        timerLabel.setForeground(Color.BLACK);
+        timerLabel.setBackground(null);
+        timerLabel.setOpaque(false);
+    }
 
+    public void setTimeAttackMode(boolean enabled, int minutes) {
+        setTimeAttackMode(enabled, minutes, minutes * 60);  // 默认使用完整时间
+    }
+
+    public void setTimeAttackMode(boolean enabled, int minutes, int remainingSeconds) {
+        System.out.println("setTimeAttackMode called with enabled=" + enabled + 
+            ", minutes=" + minutes + 
+            ", remainingSeconds=" + remainingSeconds);
+        
+        // 设置成员变量
+        this.isTimeAttackMode = enabled;
+        this.timeLimit = minutes;
+        
         if (enabled) {
+            System.out.println("Enabling time attack mode...");
+            // 停止现有的计时器
+            if (countdownTimer != null) {
+                countdownTimer.stop();
+                countdownTimer = null;
+            }
+
+            // 设置剩余时间
+            currentTimeLeft = remainingSeconds;
+            
+            // 更新显示
+            updateTimerDisplay();
             timerLabel.setVisible(true);
-            currentTimeLeft = minutes * 60;
-            updateTimerDisplay(currentTimeLeft);
-
+            System.out.println("Timer label visible: " + timerLabel.isVisible());
+            
+            // 创建新的计时器
+            System.out.println("Creating new timer");
             countdownTimer = new Timer(1000, e -> {
-                currentTimeLeft--;
-                updateTimerDisplay(currentTimeLeft);
-
-                if (currentTimeLeft <= 60) {
-                    timerLabel.setForeground(Color.RED);
+                if (currentTimeLeft > 0) {
+                    currentTimeLeft--;
+                    updateTimerDisplay();
                 } else {
-                    timerLabel.setForeground(Color.BLACK);
-                }
-
-                if (currentTimeLeft <= 0) {
-                    ((Timer)e.getSource()).stop();
-                    timeAttackGameOver();
+                    gameOver();
                 }
             });
-
+            
+            // 启动计时器
+            System.out.println("Starting timer");
             countdownTimer.start();
+            System.out.println("Timer started with " + currentTimeLeft + " seconds remaining");
+            
+            // 确保标签可见
+            timerLabel.revalidate();
+            timerLabel.repaint();
+            System.out.println("Timer label revalidated and repainted");
         } else {
+            // 禁用计时模式
+            if (countdownTimer != null) {
+                countdownTimer.stop();
+                countdownTimer = null;
+            }
+            currentTimeLeft = 0;
             timerLabel.setVisible(false);
         }
     }
@@ -550,10 +588,16 @@ public class GameFrame extends JFrame {
     private void updateTimerDisplay(int seconds) {
         int mins = seconds / 60;
         int secs = seconds % 60;
-        timerLabel.setText(String.format("Time: %02d:%02d", mins, secs));
+        String timeText = String.format("Time: %02d:%02d", mins, secs);
+        timerLabel.setText(timeText);
+        System.out.println("Timer display updated: " + timeText + ", Label visible: " + timerLabel.isVisible());
     }
 
-    private void timeAttackGameOver() {
+    private void updateTimerDisplay() {
+        updateTimerDisplay(currentTimeLeft);
+    }
+
+    private void gameOver() {
         Timer flashTimer = new Timer(250, new ActionListener() {
             private int count = 0;
             @Override
@@ -632,9 +676,55 @@ public class GameFrame extends JFrame {
             this.setVisible(false);
         } else {
             controller.restartGame();
-            if (timeAttackMode) {
+            if (isTimeAttackMode) {
                 setTimeAttackMode(true, timeLimit);
             }
         }
+    }
+
+    public boolean isTimeAttackMode() {
+        return isTimeAttackMode;
+    }
+
+    public int getRemainingTime() {
+        return currentTimeLeft;
+    }
+
+    public int getTimeLimit() {
+        return timeLimit;
+    }
+
+    public void restartGame() {
+        // Reset the game state
+        controller.resetGame();
+        // Reset the time attack timer if in time attack mode
+        if (isTimeAttackMode) {
+            startTimeAttack();
+        }
+        // Update the UI
+        repaint();
+    }
+
+    public void startTimeAttack() {
+        isTimeAttackMode = true;
+        remainingTime = 300; // 5 minutes in seconds
+        
+        if (timeAttackTimer != null) {
+            timeAttackTimer.stop();
+        }
+        
+        timeAttackTimer = new Timer(1000, e -> {
+            remainingTime--;
+            if (remainingTime <= 0) {
+                timeAttackTimer.stop();
+                JOptionPane.showMessageDialog(this, "Time's up! Game Over!");
+                dispose();
+                if (parentFrame != null) {
+                    parentFrame.setVisible(true);
+                }
+            }
+            repaint();
+        });
+        timeAttackTimer.start();
     }
 }

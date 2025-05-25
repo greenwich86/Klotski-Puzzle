@@ -1,0 +1,26 @@
+{
+  "currentLevel": 0,
+  "timeLimit": 3,
+  "removedObstacles": [],
+  "width": 4,
+  "timeAttackMode": false,
+  "moveCount": 2,
+  "board": [
+    [3, 3, 3, 3],
+    [3, 3, 3, 3],
+    [4, 2, 2, 4],
+    [1, 1, 0, 4],
+    [1, 1, 0, 4]
+  ],
+  "username": "test",
+  "height": 5,
+  "props": {
+    "OBSTACLE_REMOVER": 0,
+    "TIME_BONUS": 0,
+    "HINT": 0
+  },
+  "remainingTime": 0,
+  "level": 1,
+  "moves": 20,
+  "timestamp": 1748081901948
+} 
