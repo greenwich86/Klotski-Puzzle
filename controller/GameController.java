@@ -130,11 +130,15 @@ public class GameController {
 
         // Check if props are allowed for this level
         if (!MapModel.LEVEL_PROPS_ALLOWED[level]) {
-            return; // No props for Easy and Master levels
+            return; // No props for Master level
         }
 
         // Initialize props based on difficulty
-        if (level == 1) { // Hard level
+        if (level == 0) { // Easy level
+            availableProps.put(Prop.PropType.HINT, new Prop(Prop.PropType.HINT, 3));
+            availableProps.put(Prop.PropType.TIME_BONUS, new Prop(Prop.PropType.TIME_BONUS, 3));
+            availableProps.put(Prop.PropType.OBSTACLE_REMOVER, new Prop(Prop.PropType.OBSTACLE_REMOVER, 2));
+        } else if (level == 1) { // Hard level
             availableProps.put(Prop.PropType.HINT, new Prop(Prop.PropType.HINT, 2));
             availableProps.put(Prop.PropType.TIME_BONUS, new Prop(Prop.PropType.TIME_BONUS, 3));
             availableProps.put(Prop.PropType.OBSTACLE_REMOVER, new Prop(Prop.PropType.OBSTACLE_REMOVER, 1));
@@ -685,7 +689,7 @@ public class GameController {
     }
 
     /**
-     * Use the hint prop to show the next best 3 moves
+     * Use the hint prop to automatically execute the next 3 moves
      */
     public boolean useHintProp() {
         if (!isPropAvailable(Prop.PropType.HINT)) {
@@ -698,38 +702,26 @@ public class GameController {
             // Get moves from the solution if available
             if (solver.getSolutionLength() > 0) {
                 // Get up to 3 steps from the solution
-                int stepsToShow = Math.min(3, solver.getSolutionLength());
-                StringBuilder hintMessage = new StringBuilder();
-                hintMessage.append("<html><b>Hint:</b> Here are the next ").append(stepsToShow).append(" moves:<br><br>");
+                int stepsToExecute = Math.min(3, solver.getSolutionLength());
+                List<model.AISolver.Move> solutionMoves = solver.getSolutionMoves(stepsToExecute);
 
-                // Get the solution moves
-                List<model.AISolver.Move> solutionMoves = solver.getSolutionMoves(stepsToShow);
+                // Execute each move with a delay
+                Timer timer = new Timer(800, new ActionListener() {
+                    private int currentStep = 0;
 
-                // Build step-by-step hints
-                for (int i = 0; i < solutionMoves.size(); i++) {
-                    model.AISolver.Move move = solutionMoves.get(i);
-                    int pieceType = model.getId(move.row, move.col);
-                    String pieceName = getPieceNameByType(pieceType);
-
-                    hintMessage.append("<b>Step ").append(i+1).append(":</b> Move the ");
-                    hintMessage.append(pieceName).append(" piece at position [").append(move.row + 1).append(", ").append(move.col + 1);
-                    hintMessage.append("] ").append(getDirectionText(move.direction)).append("<br>");
-                }
-
-                hintMessage.append("</html>");
-
-                // Show the hint dialog with the multi-step suggestions
-                JOptionPane.showMessageDialog(view,
-                        hintMessage.toString(),
-                        "Hint - Next " + stepsToShow + " Moves",
-                        JOptionPane.INFORMATION_MESSAGE);
-
-                // Flash the piece that should be moved next to highlight it
-                // Find the box component for the first move
-                BoxComponent pieceToMove = findBoxAtPosition(solutionMoves.get(0).row, solutionMoves.get(0).col);
-                if (pieceToMove != null) {
-                    highlightNextMove(pieceToMove);
-                }
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        if (currentStep < solutionMoves.size()) {
+                            model.AISolver.Move move = solutionMoves.get(currentStep);
+                            doMove(move.row, move.col, move.direction);
+                            currentStep++;
+                        } else {
+                            ((Timer)e.getSource()).stop();
+                        }
+                    }
+                });
+                timer.setRepeats(true);
+                timer.start();
 
                 // Consume the prop
                 Prop hintProp = availableProps.get(Prop.PropType.HINT);
@@ -737,25 +729,13 @@ public class GameController {
 
                 return true;
             }
-
-            // Fallback message if solution found but no moves available (shouldn't happen)
-            JOptionPane.showMessageDialog(view,
-                    "Hint: Try moving a piece toward the exit!",
-                    "Hint",
-                    JOptionPane.INFORMATION_MESSAGE);
-
-            // Consume the prop
-            Prop hintProp = availableProps.get(Prop.PropType.HINT);
-            hintProp.use();
-
-            return true;
-        } else {
-            JOptionPane.showMessageDialog(view,
-                    "Sorry, no solution found from the current position.",
-                    "Hint",
-                    JOptionPane.ERROR_MESSAGE);
-            return false;
         }
+
+        JOptionPane.showMessageDialog(view,
+                "Sorry, no solution found from the current position.",
+                "Hint",
+                JOptionPane.ERROR_MESSAGE);
+        return false;
     }
 
     /**

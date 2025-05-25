@@ -4,7 +4,7 @@
   "removedObstacles": [],
   "width": 4,
   "timeAttackMode": false,
-  "moveCount": 2,
+  "moveCount": 0,
   "board": [
     [
       3,
@@ -27,12 +27,12 @@
     [
       3,
       4,
-      0,
+      4,
       3
     ],
     [
       3,
-      4,
+      0,
       0,
       3
     ]
@@ -40,9 +40,9 @@
   "username": "1",
   "height": 5,
   "props": {
-    "OBSTACLE_REMOVER": 0,
-    "TIME_BONUS": 0,
-    "HINT": 0
+    "OBSTACLE_REMOVER": 2,
+    "TIME_BONUS": 3,
+    "HINT": 2
   },
   "remainingTime": 0
 }

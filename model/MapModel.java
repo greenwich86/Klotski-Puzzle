@@ -27,7 +27,7 @@ public class MapModel {
     
     // Props availability per level
     public static final boolean[] LEVEL_PROPS_ALLOWED = {
-        false, // Easy - no props
+        true,  // Easy - props allowed
         true,  // Hard - props allowed
         true,  // Expert - props allowed
         false  // Master - no props
@@ -76,21 +76,21 @@ public class MapModel {
         {
                 {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, SOLDIER, BLOCKED},
                 {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, BLOCKED, 0},
-                {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER, BLOCKED, 0},
-                {SOLDIER, ZHOU_YU, ZHOU_YU, ZHOU_YU, SOLDIER, 0},
-                {GENERAL, SOLDIER, SOLDIER, GENERAL, MILITARY_CAMP, 0},
-                {GENERAL, 0, 0, GENERAL, 0, 0}
+                {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER, 0, 0},
+                {0, ZHOU_YU, ZHOU_YU, ZHOU_YU, SOLDIER, 0},
+                {GENERAL, SOLDIER, SOLDIER, 0, MILITARY_CAMP, 0},
+                {GENERAL, 0, 0, 0, 0, 0}
 
 
         },
         // Level 3 - Master (6x5) 四面楚歌
         {
-            {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, SOLDIER, 0},
-            {GENERAL, SOLDIER, CAO_CAO, CAO_CAO, BLOCKED, 0},
+            {BLOCKED, SOLDIER, CAO_CAO, CAO_CAO, SOLDIER, 0},
+            {0, SOLDIER, CAO_CAO, CAO_CAO, BLOCKED, 0},
             {SOLDIER, GUAN_YU, GUAN_YU, SOLDIER, SOLDIER, 0},
             {0, ZHOU_YU, ZHOU_YU, ZHOU_YU, 0, 0},
             {SOLDIER, SOLDIER, SOLDIER, SOLDIER, 0, 0},
-            {0, 0, 0, 0, 0, 0}
+            {MILITARY_CAMP, 0, 0, 0, 0, 0}
         }
     };
 
