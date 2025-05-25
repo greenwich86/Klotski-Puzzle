@@ -190,15 +190,26 @@ public class GamePanel extends ListenerPanel {
                         box = new BoxComponent(new Color(139, 69, 19), i, j); // Brown color for military camp
                         box.setSize(GRID_SIZE, GRID_SIZE);
                         box.setMovable(false); // Military camps are immovable
-                        // Add Chinese character text display for military camp
-                        JLabel campLabel = new JLabel("军营");
-                        campLabel.setForeground(Color.WHITE);
-                        campLabel.setFont(new Font("SimSun", Font.BOLD, GRID_SIZE / 3));
-                        campLabel.setHorizontalAlignment(JLabel.CENTER);
-                        campLabel.setBounds(0, 0, GRID_SIZE, GRID_SIZE);
-                        box.setLayout(new BorderLayout());
-                        box.add(campLabel, BorderLayout.CENTER);
+                        try {
+                            BufferedImage originalImage = ImageIO.read(getClass().getResourceAsStream("/resource/military_camp.jpg"));
+                            if (originalImage != null) {
+                                Image scaledImage = originalImage.getScaledInstance(
+                                        GRID_SIZE,
+                                        GRID_SIZE,
+                                        Image.SCALE_SMOOTH
+                                );
+                                JLabel campImageLabel = new JLabel(new ImageIcon(scaledImage));
+                                campImageLabel.setBounds(0, 0, GRID_SIZE, GRID_SIZE);
+                                box.setLayout(new BorderLayout());
+                                box.add(campImageLabel, BorderLayout.CENTER);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("加载军营图片失败: " + e.getMessage());
+                        }
                         break;
+                    default:
+                        box = new BoxComponent(Color.GRAY, i, j);
+                        box.setMovable(false);
                 }
 
                 if (box != null) {
@@ -542,7 +553,7 @@ public class GamePanel extends ListenerPanel {
         if (selectedBox != null) {
             selectedBox.setSelected(false);
         }
-        
+
         // Set new selected box
         selectedBox = box;
         if (selectedBox != null) {
@@ -694,24 +705,24 @@ public class GamePanel extends ListenerPanel {
     private void updateBoxPositions() {
         int width = getWidth();
         int height = getHeight();
-        
+
         // Calculate grid size
         int gridWidth = width / model.getWidth();
         int gridHeight = height / model.getHeight();
         GRID_SIZE = Math.min(gridWidth, gridHeight);
-        
+
         // Standardize grid size to be a multiple of 10
         GRID_SIZE = (GRID_SIZE / 10) * 10;
-        
+
         // Ensure minimum grid size
         if (GRID_SIZE < 50) {
             GRID_SIZE = 50;
         }
-        
+
         // Calculate starting position to center the board
         int startX = (width - (model.getWidth() * GRID_SIZE)) / 2;
         int startY = (height - (model.getHeight() * GRID_SIZE)) / 2;
-        
+
         // Update box positions
         for (int i = 0; i < model.getHeight(); i++) {
             for (int j = 0; j < model.getWidth(); j++) {
