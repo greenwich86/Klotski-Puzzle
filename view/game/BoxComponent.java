@@ -71,7 +71,7 @@ public class BoxComponent extends JComponent {
         } else if (color.equals(Color.ORANGE)) {
             return "/resource/Guan Yu.jpg";
         } else if (color.equals(Color.BLUE)) {
-            return "/resource/General2.jpg";
+            return "/resource/General.jpg";
         } else if (color.equals(Color.GREEN)) {
             return "/resource/Soldier.jpg";
         } else if (color.equals(Color.MAGENTA)) {
