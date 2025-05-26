@@ -1574,10 +1574,15 @@ public class GameController {
     }
 
     public void resetGame() {
-        // Reset the game state by reinitializing the map
-        model = new MapModel();
+        // Reset the game state by reinitializing the map with current level
+        model = new MapModel(currentLevel);
         // Reset the move counter
         moveCount = 0;
+        // Clear move history and redo history
+        moveHistory.clear();
+        redoHistory.clear();
+        // Save initial state to allow undo back to start
+        moveHistory.push(model.copyMatrix());
         // Reset the timer if in time attack mode
         if (view.getParent() != null && view.getParent().getParent() instanceof view.game.GameFrame) {
             view.game.GameFrame gameFrame = (view.game.GameFrame) view.getParent().getParent();
@@ -1585,5 +1590,12 @@ public class GameController {
                 gameFrame.startTimeAttack();
             }
         }
+        // Reset the board view
+        view.resetBoard(model.getMatrix());
+        view.updateMoveCount(0);
+        // Reinitialize props for the current level
+        initializeProps(currentLevel);
+        // Request focus to ensure keyboard controls work
+        view.requestFocusInWindow();
     }
 }
